@@ -1,0 +1,188 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Status {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DetectionType {
+  UNSAFE_ACT
+  UNSAFE_CONDITION
+}
+
+enum CorrectiveActionStatus {
+  PENDING_ACCEPTANCE
+  OPEN
+  PENDING
+  EXPIRED
+  CLOSURE_REVIEW
+  CLOSED
+  REJECTED
+  REOPENED
+}
+
+enum MediaBlobKind {
+  DETECTION_EVIDENCE
+  CORRECTIVE_SIGNATURE
+  CORRECTIVE_RESOLUTION
+}
+
+model Company {
+  id         String      @id @default(uuid())
+  name       String      @unique
+  users      User[]
+  detections Detection[]
+}
+
+model Area {
+  id         String      @id @default(uuid())
+  name       String      @unique
+  users      User[]
+  detections Detection[]
+}
+
+model Branch {
+  id         String      @id @default(uuid())
+  name       String      @unique
+  users      User[]
+  detections Detection[]
+}
+
+model Role {
+  id    String @id @default(uuid())
+  name  String @unique
+  users User[]
+}
+
+model User {
+  id        String  @id @default(uuid())
+  name      String
+  email     String  @unique
+  password  String
+  isActive  Boolean @default(true)
+  companyId String
+  areaId    String
+  branchId  String
+  roleId    String  @default("Responsable")
+
+  company             Company                @relation(fields: [companyId], references: [id])
+  area                Area                   @relation(fields: [areaId], references: [id])
+  branch              Branch                 @relation(fields: [branchId], references: [id])
+  role                Role?                  @relation(fields: [roleId], references: [id])
+  detections          Detection[]
+  inspectedWalkthroughs Walkthrough[]        @relation("WalkthroughInspector")
+  signedCommitments   CorrectiveCommitment[]
+  uploadedMediaBlobs  MediaBlob[]
+}
+
+model Walkthrough {
+  id          String      @id @default(uuid())
+  folio       String      @unique
+  inspectorId String
+  startedAt   DateTime
+  finishedAt  DateTime?
+  status      Status      @default(IN_PROGRESS)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  inspector  User        @relation("WalkthroughInspector", fields: [inspectorId], references: [id])
+  detections Detection[]
+
+  @@index([inspectorId])
+  @@index([startedAt])
+}
+
+model Detection {
+  id            String        @id @default(uuid())
+  folio         String        @unique
+  walkthroughId String
+  companyId     String
+  branchId      String
+  areaId        String
+  type          DetectionType
+  description   String        @db.Text
+  responsibleId         String
+  evidencePhotoBlobId   String?       @unique
+  createdAt             DateTime      @default(now())
+
+  evidencePhotoBlob MediaBlob? @relation("DetectionEvidence", fields: [evidencePhotoBlobId], references: [id])
+  responsible      User              @relation(fields: [responsibleId], references: [id])
+  company          Company           @relation(fields: [companyId], references: [id])
+  branch           Branch            @relation(fields: [branchId], references: [id])
+  area             Area              @relation(fields: [areaId], references: [id])
+  walkthrough      Walkthrough       @relation(fields: [walkthroughId], references: [id])
+  correctiveAction CorrectiveAction?
+
+  @@index([walkthroughId])
+  @@index([responsibleId])
+  @@index([createdAt])
+}
+
+model CorrectiveAction {
+  id                    String                 @id @default(uuid())
+  detectionId           String                 @unique
+  correctivePlan        String?                @db.Text
+  status                CorrectiveActionStatus @default(PENDING_ACCEPTANCE)
+  currentCommitmentDate DateTime?              @db.Date
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  detection             Detection              @relation(fields: [detectionId], references: [id])
+  correctiveCommitments CorrectiveCommitment[]
+
+  @@index([status])
+  @@index([currentCommitmentDate])
+}
+
+model CorrectiveCommitment {
+  id                    String    @id @default(uuid())
+  correctiveActionId    String
+  sequenceNumber        Int
+  commitmentDate        DateTime  @db.Date
+  signatureBlobId       String    @unique
+  resolutionPhotoBlobId String?   @unique
+  signedById            String
+  signedAt              DateTime  @default(now())
+  changeReason          String?   @db.Text
+  previousCommitmentId  String?
+
+  signatureBlob       MediaBlob  @relation("CommitmentSignature", fields: [signatureBlobId], references: [id])
+  resolutionPhotoBlob MediaBlob? @relation("CommitmentResolution", fields: [resolutionPhotoBlobId], references: [id])
+  correctiveAction   CorrectiveAction       @relation(fields: [correctiveActionId], references: [id])
+  signedBy           User                   @relation(fields: [signedById], references: [id])
+  previousCommitment CorrectiveCommitment?  @relation("CommitmentHistory", fields: [previousCommitmentId], references: [id])
+  nextCommitments    CorrectiveCommitment[] @relation("CommitmentHistory")
+
+  @@unique([correctiveActionId, sequenceNumber])
+  @@index([correctiveActionId])
+  @@index([signedById])
+}
+
+model MediaBlob {
+  id           String        @id @default(uuid())
+  kind         MediaBlobKind
+  mimeType     String
+  sizeBytes    Int
+  content      Bytes
+  uploadedById String
+  createdAt    DateTime      @default(now())
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  detectionEvidence    Detection?            @relation("DetectionEvidence")
+  commitmentSignature  CorrectiveCommitment? @relation("CommitmentSignature")
+  commitmentResolution CorrectiveCommitment? @relation("CommitmentResolution")
+
+  @@index([kind])
+  @@index([uploadedById])
+  @@index([createdAt])
+}

@@ -1,0 +1,103 @@
+import { CorrectiveActionStatus, DetectionType } from '../../../../generated/prisma/client';
+import type { Prisma } from '../../../../generated/prisma/client';
+import type { DashboardQueryFilter } from '../interfaces/dashboard.interface';
+
+const API_TO_PRISMA_STATUS: Record<string, CorrectiveActionStatus> = {
+  pending_acceptance: CorrectiveActionStatus.PENDING_ACCEPTANCE,
+  open: CorrectiveActionStatus.OPEN,
+  pending: CorrectiveActionStatus.PENDING,
+  expired: CorrectiveActionStatus.EXPIRED,
+  closure_review: CorrectiveActionStatus.CLOSURE_REVIEW,
+  closed: CorrectiveActionStatus.CLOSED,
+  rejected: CorrectiveActionStatus.REJECTED,
+  reopened: CorrectiveActionStatus.REOPENED,
+};
+
+export function parseDateOnly(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+export function resolveDefaultPeriod(timeZone: string): {
+  readonly from: string;
+  readonly to: string;
+} {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const to = formatter.format(now);
+  const fromDate = new Date(now);
+  fromDate.setDate(fromDate.getDate() - 30);
+  const from = formatter.format(fromDate);
+
+  return { from, to };
+}
+
+export function buildActionWhereInput(
+  filter: DashboardQueryFilter,
+  rangeStart: Date,
+  rangeEnd: Date,
+): Prisma.CorrectiveActionWhereInput {
+  const prismaStatus = filter.status
+    ? API_TO_PRISMA_STATUS[filter.status]
+    : undefined;
+
+  return {
+    createdAt: {
+      gte: rangeStart,
+      lte: rangeEnd,
+    },
+    ...(prismaStatus ? { status: prismaStatus } : {}),
+    detection: {
+      ...(filter.companyId ? { companyId: filter.companyId } : {}),
+      ...(filter.areaId ? { areaId: filter.areaId } : {}),
+      ...(filter.responsibleId ? { responsibleId: filter.responsibleId } : {}),
+      ...(filter.detectionType
+        ? {
+            type:
+              filter.detectionType === 'unsafe_act'
+                ? DetectionType.UNSAFE_ACT
+                : DetectionType.UNSAFE_CONDITION,
+          }
+        : {}),
+    },
+  };
+}
+
+export function computeComplianceRate(
+  closedActions: number,
+  actionsTotal: number,
+): number {
+  if (actionsTotal === 0) {
+    return 0;
+  }
+
+  return Math.round((closedActions / actionsTotal) * 100);
+}
+
+export function truncateAreaLabel(name: string): string {
+  return name.length > 8 ? `${name.slice(0, 6)}.` : name;
+}
+
+const MONTH_LABELS = [
+  'Ene',
+  'Feb',
+  'Mar',
+  'Abr',
+  'May',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dic',
+] as const;
+
+export function getMonthLabel(date: Date): string {
+  return MONTH_LABELS[date.getUTCMonth()] ?? '—';
+}
