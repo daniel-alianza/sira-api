@@ -6,6 +6,8 @@ import { GetActionByIdUseCase } from './application/use-cases/get-action-by-id.u
 import { RespondCorrectiveActionUseCase } from './application/use-cases/respond-corrective-action.use-case';
 import { ReviewCorrectiveClosureUseCase } from './application/use-cases/review-corrective-closure.use-case';
 import { SubmitResolutionPhotoUseCase } from './application/use-cases/submit-resolution-photo.use-case';
+import { ReassignResponsibleUseCase } from './application/use-cases/reassign-responsible.use-case';
+import { GetClosedActionsUseCase } from './application/use-cases/get-closed-actions.use-case';
 import { PrismaCorrectiveActionRepository } from './infrastructure/prisma-corrective-action.repository';
 import { CorrectiveController } from './presentation/corrective.controller';
 
@@ -18,6 +20,8 @@ import { CorrectiveController } from './presentation/corrective.controller';
     RespondCorrectiveActionUseCase,
     SubmitResolutionPhotoUseCase,
     ReviewCorrectiveClosureUseCase,
+    ReassignResponsibleUseCase,
+    GetClosedActionsUseCase,
     {
       provide: CORRECTIVE_ACTION_REPOSITORY,
       useClass: PrismaCorrectiveActionRepository,

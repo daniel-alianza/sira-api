@@ -178,6 +178,7 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
               description: true,
               createdAt: true,
               areaId: true,
+              responsibleId: true,
               area: { select: { name: true } },
               responsible: { select: { name: true } },
               walkthrough: { select: { folio: true } },
@@ -206,6 +207,7 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
       statusGroups,
       walkthroughsCount,
       closedActionsForAvg,
+      actions,
       resolvedTimeZone,
     );
     const areaCompliance = buildAreaCompliance(actions);
@@ -488,6 +490,7 @@ function buildKpis(
   statusGroups: { status: CorrectiveActionStatus; _count: { _all: number } }[],
   walkthroughsCount: number,
   closedActions: { createdAt: Date; updatedAt: Date }[],
+  allActions: { status: CorrectiveActionStatus; detection: { responsibleId: string } }[],
   timeZone: string,
 ) {
   const countByStatus = new Map(
@@ -505,6 +508,18 @@ function buildKpis(
     (sum, group) => sum + group._count._all,
     0,
   );
+
+  const notRespondedUsers = new Set(
+    allActions
+      .filter((a) => a.status === CorrectiveActionStatus.PENDING_ACCEPTANCE)
+      .map((a) => a.detection.responsibleId),
+  ).size;
+
+  const notSignedUsers = new Set(
+    allActions
+      .filter((a) => a.status === CorrectiveActionStatus.OPEN)
+      .map((a) => a.detection.responsibleId),
+  ).size;
 
   const avgClosureDays =
     closedActions.length === 0
@@ -534,6 +549,8 @@ function buildKpis(
     rejectedClosures: getCount(CorrectiveActionStatus.REJECTED),
     walkthroughsPeriod: walkthroughsCount,
     avgClosureDays,
+    notRespondedUsers,
+    notSignedUsers,
   };
 }
 

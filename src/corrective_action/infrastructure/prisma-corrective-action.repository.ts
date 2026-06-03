@@ -16,6 +16,7 @@ import {
   formatTourDateTimeLabel,
 } from '../../tours/application/helpers/tour-date.helper';
 import type {
+  ClosedActionSummaryRow,
   CorrectiveActionDetailRow,
   CorrectiveActionRow,
   FindCorrectiveActionsFilter,
@@ -60,9 +61,7 @@ export class PrismaCorrectiveActionRepository implements CorrectiveActionReposit
     filter: FindCorrectiveActionsFilter,
   ): Promise<CorrectiveActionRow[]> {
     const actions = await this.prisma.correctiveAction.findMany({
-      where: filter.responsibleId
-        ? { detection: { responsibleId: filter.responsibleId } }
-        : undefined,
+      where: buildActionFindWhere(filter),
       orderBy: [
         { detection: { walkthrough: { startedAt: 'desc' } } },
         { detection: { createdAt: 'desc' } },
@@ -326,6 +325,25 @@ export class PrismaCorrectiveActionRepository implements CorrectiveActionReposit
     };
   }
 
+  async reassignResponsible(
+    actionId: string,
+    newResponsibleId: string,
+  ): Promise<void> {
+    const action = await this.prisma.correctiveAction.findUnique({
+      where: { id: actionId },
+      select: { detectionId: true },
+    });
+
+    if (!action) {
+      throw new Error('CORRECTIVE_ACTION_NOT_FOUND');
+    }
+
+    await this.prisma.detection.update({
+      where: { id: action.detectionId },
+      data: { responsibleId: newResponsibleId },
+    });
+  }
+
   async reviewClosure(
     input: ReviewCorrectiveClosureInput,
   ): Promise<ReviewCorrectiveClosureResult> {
@@ -390,6 +408,112 @@ export class PrismaCorrectiveActionRepository implements CorrectiveActionReposit
 
     return result;
   }
+
+  async findClosed(
+    filter: FindCorrectiveActionsFilter,
+  ): Promise<ClosedActionSummaryRow[]> {
+    const actions = await this.prisma.correctiveAction.findMany({
+      where: {
+        ...buildActionFindWhere(filter),
+        status: PrismaCorrectiveActionStatus.CLOSED,
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        updatedAt: true,
+        detection: {
+          select: {
+            folio: true,
+            description: true,
+            type: true,
+            evidencePhotoBlobId: true,
+            company: { select: { name: true } },
+            branch: { select: { name: true } },
+            area: { select: { name: true } },
+            responsible: { select: { name: true } },
+            walkthrough: { select: { folio: true } },
+          },
+        },
+        correctiveCommitments: {
+          orderBy: { sequenceNumber: 'desc' },
+          take: 1,
+          select: { resolutionPhotoBlobId: true },
+        },
+      },
+    });
+
+    return actions.map((action) => {
+      const detection = action.detection;
+      const latestCommitment = action.correctiveCommitments[0] ?? null;
+
+      return {
+        id: action.id,
+        detectionFolio: detection.folio,
+        walkthroughFolio: detection.walkthrough.folio,
+        detectionType: mapDetectionTypeFromPrisma(detection.type),
+        description: detection.description,
+        responsibleName: detection.responsible.name,
+        companyName: detection.company.name,
+        branchName: detection.branch.name,
+        areaName: detection.area.name,
+        closedAt: formatTourDateLabel(action.updatedAt),
+        evidencePhotoUrl: buildMediaResourcePath(detection.evidencePhotoBlobId),
+        resolutionPhotoUrl: buildMediaResourcePath(
+          latestCommitment?.resolutionPhotoBlobId,
+        ),
+      };
+    });
+  }
+}
+
+function buildActionFindWhere(
+  filter: FindCorrectiveActionsFilter,
+): import('../../../generated/prisma/client').Prisma.CorrectiveActionWhereInput {
+  const where: import('../../../generated/prisma/client').Prisma.CorrectiveActionWhereInput = {};
+
+  const detectionFilter: import('../../../generated/prisma/client').Prisma.DetectionWhereInput = {};
+
+  if (filter.responsibleId) {
+    detectionFilter.responsibleId = filter.responsibleId;
+  }
+
+  if (filter.companyId) {
+    detectionFilter.companyId = filter.companyId;
+  }
+
+  if (filter.areaId) {
+    detectionFilter.areaId = filter.areaId;
+  }
+
+  if (filter.branchId) {
+    detectionFilter.branchId = filter.branchId;
+  }
+
+  if (Object.keys(detectionFilter).length > 0) {
+    where.detection = detectionFilter;
+  }
+
+  if (filter.status) {
+    where.status = filter.status as PrismaCorrectiveActionStatus;
+  }
+
+  if (filter.dateFrom || filter.dateTo) {
+    const createdAtFilter: { gte?: Date; lte?: Date } = {};
+
+    if (filter.dateFrom) {
+      createdAtFilter.gte = parseCommitmentDateOnly(filter.dateFrom);
+    }
+
+    if (filter.dateTo) {
+      const endDate = parseCommitmentDateOnly(filter.dateTo);
+      endDate.setUTCHours(23, 59, 59, 999);
+      createdAtFilter.lte = endDate;
+    }
+
+    where.createdAt = createdAtFilter;
+  }
+
+  return where;
 }
 
 function parseCommitmentDateOnly(value: string): Date {

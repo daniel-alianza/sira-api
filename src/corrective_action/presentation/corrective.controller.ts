@@ -7,6 +7,8 @@ import {
   Param,
   Post,
   Body,
+  Patch,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { buildApiResponse } from '../../common/helpers/build-api-response';
@@ -18,10 +20,14 @@ import { GetActionByIdUseCase } from '../application/use-cases/get-action-by-id.
 import { RespondCorrectiveActionUseCase } from '../application/use-cases/respond-corrective-action.use-case';
 import { ReviewCorrectiveClosureUseCase } from '../application/use-cases/review-corrective-closure.use-case';
 import { SubmitResolutionPhotoUseCase } from '../application/use-cases/submit-resolution-photo.use-case';
+import { ReassignResponsibleUseCase } from '../application/use-cases/reassign-responsible.use-case';
+import { GetClosedActionsUseCase } from '../application/use-cases/get-closed-actions.use-case';
 import {
   respondCorrectiveActionBodySchema,
   reviewCorrectiveClosureBodySchema,
   submitResolutionPhotoBodySchema,
+  reassignResponsibleBodySchema,
+  actionsQuerySchema,
 } from './dtos';
 
 @Controller('corrective-actions')
@@ -33,20 +39,56 @@ export class CorrectiveController {
     private readonly respondCorrectiveActionUseCase: RespondCorrectiveActionUseCase,
     private readonly submitResolutionPhotoUseCase: SubmitResolutionPhotoUseCase,
     private readonly reviewCorrectiveClosureUseCase: ReviewCorrectiveClosureUseCase,
+    private readonly reassignResponsibleUseCase: ReassignResponsibleUseCase,
+    private readonly getClosedActionsUseCase: GetClosedActionsUseCase,
   ) {}
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  async getActions(@CurrentUser() currentUser: JwtPayload) {
+  async getActions(
+    @CurrentUser() currentUser: JwtPayload,
+    @Query() query: unknown,
+  ) {
+    const parsedQuery = actionsQuerySchema.safeParse(query);
+
+    if (!parsedQuery.success) {
+      const firstIssue = parsedQuery.error.issues[0];
+      const field = firstIssue?.path.join('.') ?? 'query';
+      throw new BadRequestException(`${field}: ${firstIssue?.message}`);
+    }
+
     const actions = await this.getActionsUseCase.execute(
       currentUser.sub,
       currentUser.roleId,
+      parsedQuery.data,
     );
 
     return buildApiResponse(
       actions,
       'Acciones correctivas obtenidas correctamente',
     );
+  }
+
+  @Get('closed')
+  @HttpCode(HttpStatus.OK)
+  async getClosedActions(
+    @CurrentUser() currentUser: JwtPayload,
+    @Query() query: unknown,
+  ) {
+    const parsedQuery = actionsQuerySchema.safeParse(query);
+
+    if (!parsedQuery.success) {
+      const firstIssue = parsedQuery.error.issues[0];
+      const field = firstIssue?.path.join('.') ?? 'query';
+      throw new BadRequestException(`${field}: ${firstIssue?.message}`);
+    }
+
+    const rows = await this.getClosedActionsUseCase.execute({
+      ...parsedQuery.data,
+      status: 'closed',
+    });
+
+    return buildApiResponse(rows, 'Acciones cerradas obtenidas correctamente');
   }
 
   @Get(':id')
@@ -151,5 +193,29 @@ export class CorrectiveController {
         : 'Cierre rechazado; la acción fue reabierta para el responsable';
 
     return buildApiResponse(result, message);
+  }
+
+  @Patch(':id/reassign')
+  @HttpCode(HttpStatus.OK)
+  async reassign(
+    @Param('id') actionId: string,
+    @CurrentUser() currentUser: JwtPayload,
+    @Body() body: unknown,
+  ) {
+    const parsedBody = reassignResponsibleBodySchema.safeParse(body);
+
+    if (!parsedBody.success) {
+      const firstIssue = parsedBody.error.issues[0];
+      const field = firstIssue?.path.join('.') ?? 'body';
+      throw new BadRequestException(`${field}: ${firstIssue?.message}`);
+    }
+
+    await this.reassignResponsibleUseCase.execute({
+      actionId,
+      newResponsibleId: parsedBody.data.newResponsibleId,
+      requesterRoleId: currentUser.roleId,
+    });
+
+    return buildApiResponse(null, 'Responsable reasignado correctamente');
   }
 }

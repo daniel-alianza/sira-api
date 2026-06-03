@@ -44,6 +44,27 @@ export interface CorrectiveActionDetailRow extends CorrectiveActionRow {
   readonly commitmentHistory: readonly CommitmentHistoryItem[];
 }
 
+export interface ClosedActionSummaryRow {
+  readonly id: string;
+  readonly detectionFolio: string;
+  readonly walkthroughFolio: string;
+  readonly detectionType: CorrectiveDetectionType;
+  readonly description: string;
+  readonly responsibleName: string;
+  readonly companyName: string;
+  readonly branchName: string;
+  readonly areaName: string;
+  readonly closedAt: string;
+  readonly evidencePhotoUrl: string | null;
+  readonly resolutionPhotoUrl: string | null;
+}
+
 export interface FindCorrectiveActionsFilter {
   readonly responsibleId?: string;
+  readonly companyId?: string;
+  readonly areaId?: string;
+  readonly branchId?: string;
+  readonly status?: string;
+  readonly dateFrom?: string;
+  readonly dateTo?: string;
 }

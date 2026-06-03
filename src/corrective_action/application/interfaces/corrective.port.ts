@@ -40,6 +40,13 @@ export interface CorrectiveActionRepositoryPort {
   reviewClosure(
     input: ReviewCorrectiveClosureInput,
   ): Promise<ReviewCorrectiveClosureResult>;
+  reassignResponsible(
+    actionId: string,
+    newResponsibleId: string,
+  ): Promise<void>;
+  findClosed(
+    filter: FindCorrectiveActionsFilter,
+  ): Promise<import('./corrective.interface').ClosedActionSummaryRow[]>;
 }
 
 export const CORRECTIVE_ACTION_REPOSITORY = Symbol(

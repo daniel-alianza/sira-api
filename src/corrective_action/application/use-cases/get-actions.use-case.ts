@@ -1,6 +1,9 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { resolveCorrectiveActionsFilter } from '../helpers/corrective-access.helper';
-import type { CorrectiveActionRow } from '../interfaces/corrective.interface';
+import type {
+  CorrectiveActionRow,
+  FindCorrectiveActionsFilter,
+} from '../interfaces/corrective.interface';
 import {
   CORRECTIVE_ACTION_REPOSITORY,
   type CorrectiveActionRepositoryPort,
@@ -16,6 +19,7 @@ export class GetActionsUseCase {
   async execute(
     userId: string,
     roleId: string,
+    queryFilters?: FindCorrectiveActionsFilter,
   ): Promise<CorrectiveActionRow[]> {
     const roleName =
       await this.correctiveActionRepository.findRoleNameById(roleId);
@@ -26,6 +30,9 @@ export class GetActionsUseCase {
 
     const filter = resolveCorrectiveActionsFilter(roleName, userId);
 
-    return this.correctiveActionRepository.findAll(filter);
+    return this.correctiveActionRepository.findAll({
+      ...filter,
+      ...queryFilters,
+    });
   }
 }

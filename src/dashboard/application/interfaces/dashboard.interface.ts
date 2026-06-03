@@ -25,6 +25,8 @@ export interface DashboardKpis {
   readonly rejectedClosures: number;
   readonly walkthroughsPeriod: number;
   readonly avgClosureDays: number;
+  readonly notRespondedUsers: number;
+  readonly notSignedUsers: number;
 }
 
 export interface DashboardAreaComplianceItem {

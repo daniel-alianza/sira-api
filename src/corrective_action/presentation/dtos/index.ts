@@ -4,3 +4,7 @@ export { submitResolutionPhotoBodySchema } from './submit-resolution-photo.dto';
 export type { SubmitResolutionPhotoBodyDto } from './submit-resolution-photo.dto';
 export { reviewCorrectiveClosureBodySchema } from './review-corrective-closure.dto';
 export type { ReviewCorrectiveClosureBodyDto } from './review-corrective-closure.dto';
+export { reassignResponsibleBodySchema } from './reassign-responsible.dto';
+export type { ReassignResponsibleBodyDto } from './reassign-responsible.dto';
+export { actionsQuerySchema } from './actions-query.dto';
+export type { ActionsQueryDto } from './actions-query.dto';
