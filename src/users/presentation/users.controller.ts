@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Patch,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { buildApiResponse } from '../../common/helpers/build-api-response';
@@ -14,7 +15,7 @@ import { ROLE_ADMINISTRATOR, ROLE_INSPECTOR } from '../../auth/application/const
 import { Roles } from '../../auth/presentation/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../auth/presentation/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/presentation/guards/roles.guard';
-import type { UpdateUserInput } from '../application/interfaces/user.interface';
+import type { UpdateUserInput, UserFilter } from '../application/interfaces/user.interface';
 import { GetAllUsersUseCase } from '../application/use-cases/get-all-users.use-case';
 import { UpdateUserUseCase } from '../application/use-cases/update-user.use-case';
 import { updateUserBodySchema } from './dtos/update-user.dto';
@@ -30,8 +31,18 @@ export class UsersController {
   @Get()
   @Roles(ROLE_ADMINISTRATOR, ROLE_INSPECTOR)
   @HttpCode(HttpStatus.OK)
-  async findAll() {
-    const users = await this.getAllUsersUseCase.execute();
+  async findAll(
+    @Query('companyId') companyId?: string,
+    @Query('areaId') areaId?: string,
+    @Query('branchId') branchId?: string,
+  ) {
+    const filter: UserFilter = {};
+    if (companyId) filter.companyId = companyId;
+    if (areaId) filter.areaId = areaId;
+    if (branchId) filter.branchId = branchId;
+
+    const hasFilters = Object.keys(filter).length > 0;
+    const users = await this.getAllUsersUseCase.execute(hasFilters ? filter : undefined);
 
     return buildApiResponse(users, 'Usuarios obtenidos correctamente');
   }

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { UserPublic } from '../interfaces/user.interface';
+import type { UserFilter, UserPublic } from '../interfaces/user.interface';
 import {
   USER_REPOSITORY,
   type UserRepositoryPort,
@@ -12,7 +12,7 @@ export class GetAllUsersUseCase {
     private readonly userRepository: UserRepositoryPort,
   ) {}
 
-  execute(): Promise<UserPublic[]> {
-    return this.userRepository.findAll();
+  execute(filter?: UserFilter): Promise<UserPublic[]> {
+    return this.userRepository.findAll(filter);
   }
 }

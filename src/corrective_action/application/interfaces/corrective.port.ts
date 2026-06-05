@@ -13,6 +13,11 @@ import type {
   ReviewCorrectiveClosureResult,
 } from './review-corrective-closure.interface';
 import type {
+  SubmitDetectionEvidenceInput,
+  SubmitDetectionEvidenceResult,
+  CorrectiveActionForDetectionEvidence,
+} from './submit-detection-evidence.interface';
+import type {
   SubmitResolutionPhotoInput,
   SubmitResolutionPhotoResult,
 } from './submit-resolution-photo.interface';
@@ -34,6 +39,12 @@ export interface CorrectiveActionRepositoryPort {
   submitResolutionPhoto(
     input: SubmitResolutionPhotoInput,
   ): Promise<SubmitResolutionPhotoResult>;
+  findForDetectionEvidence(
+    actionId: string,
+  ): Promise<CorrectiveActionForDetectionEvidence | null>;
+  submitDetectionEvidence(
+    input: SubmitDetectionEvidenceInput,
+  ): Promise<SubmitDetectionEvidenceResult>;
   findForClosureReview(
     actionId: string,
   ): Promise<CorrectiveActionForClosureReview | null>;

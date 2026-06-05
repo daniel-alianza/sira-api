@@ -43,11 +43,16 @@ export interface TourCorrectiveActionRow {
   readonly walkthroughFolio: string;
   readonly detectionFolio: string;
   readonly detectionType: TourDetectionTypeInput;
+  readonly description: string;
+  readonly companyName: string;
+  readonly branchName: string;
+  readonly areaName: string;
   readonly status: TourCorrectiveActionStatus;
   readonly responsible: string;
-  readonly area: string;
   readonly tourDate: string;
   readonly weekdayLabel: string;
   readonly weekdayOrder: number;
   readonly commitmentDate: string | null;
+  readonly evidencePhotoUrl: string | null;
+  readonly resolutionPhotoUrl: string | null;
 }

@@ -5,6 +5,7 @@ import { GetActionsUseCase } from './application/use-cases/get-actions.use-case'
 import { GetActionByIdUseCase } from './application/use-cases/get-action-by-id.use-case';
 import { RespondCorrectiveActionUseCase } from './application/use-cases/respond-corrective-action.use-case';
 import { ReviewCorrectiveClosureUseCase } from './application/use-cases/review-corrective-closure.use-case';
+import { SubmitDetectionEvidenceUseCase } from './application/use-cases/submit-detection-evidence.use-case';
 import { SubmitResolutionPhotoUseCase } from './application/use-cases/submit-resolution-photo.use-case';
 import { ReassignResponsibleUseCase } from './application/use-cases/reassign-responsible.use-case';
 import { GetClosedActionsUseCase } from './application/use-cases/get-closed-actions.use-case';
@@ -18,6 +19,7 @@ import { CorrectiveController } from './presentation/corrective.controller';
     GetActionsUseCase,
     GetActionByIdUseCase,
     RespondCorrectiveActionUseCase,
+    SubmitDetectionEvidenceUseCase,
     SubmitResolutionPhotoUseCase,
     ReviewCorrectiveClosureUseCase,
     ReassignResponsibleUseCase,

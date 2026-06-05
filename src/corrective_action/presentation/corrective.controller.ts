@@ -19,12 +19,14 @@ import { GetActionsUseCase } from '../application/use-cases/get-actions.use-case
 import { GetActionByIdUseCase } from '../application/use-cases/get-action-by-id.use-case';
 import { RespondCorrectiveActionUseCase } from '../application/use-cases/respond-corrective-action.use-case';
 import { ReviewCorrectiveClosureUseCase } from '../application/use-cases/review-corrective-closure.use-case';
+import { SubmitDetectionEvidenceUseCase } from '../application/use-cases/submit-detection-evidence.use-case';
 import { SubmitResolutionPhotoUseCase } from '../application/use-cases/submit-resolution-photo.use-case';
 import { ReassignResponsibleUseCase } from '../application/use-cases/reassign-responsible.use-case';
 import { GetClosedActionsUseCase } from '../application/use-cases/get-closed-actions.use-case';
 import {
   respondCorrectiveActionBodySchema,
   reviewCorrectiveClosureBodySchema,
+  submitDetectionEvidenceBodySchema,
   submitResolutionPhotoBodySchema,
   reassignResponsibleBodySchema,
   actionsQuerySchema,
@@ -37,6 +39,7 @@ export class CorrectiveController {
     private readonly getActionsUseCase: GetActionsUseCase,
     private readonly getActionByIdUseCase: GetActionByIdUseCase,
     private readonly respondCorrectiveActionUseCase: RespondCorrectiveActionUseCase,
+    private readonly submitDetectionEvidenceUseCase: SubmitDetectionEvidenceUseCase,
     private readonly submitResolutionPhotoUseCase: SubmitResolutionPhotoUseCase,
     private readonly reviewCorrectiveClosureUseCase: ReviewCorrectiveClosureUseCase,
     private readonly reassignResponsibleUseCase: ReassignResponsibleUseCase,
@@ -134,6 +137,34 @@ export class CorrectiveController {
     return buildApiResponse(
       result,
       'Acción correctiva respondida correctamente',
+    );
+  }
+
+  @Post(':id/detection-evidence')
+  @HttpCode(HttpStatus.OK)
+  async submitDetectionEvidence(
+    @Param('id') actionId: string,
+    @CurrentUser() currentUser: JwtPayload,
+    @Body() body: unknown,
+  ) {
+    const parsedBody = submitDetectionEvidenceBodySchema.safeParse(body);
+
+    if (!parsedBody.success) {
+      const firstIssue = parsedBody.error.issues[0];
+      const field = firstIssue?.path.join('.') ?? 'body';
+      throw new BadRequestException(`${field}: ${firstIssue?.message}`);
+    }
+
+    const result = await this.submitDetectionEvidenceUseCase.execute({
+      actionId,
+      userId: currentUser.sub,
+      roleId: currentUser.roleId,
+      evidencePhotoDataUrl: parsedBody.data.evidencePhotoDataUrl,
+    });
+
+    return buildApiResponse(
+      result,
+      'Evidencia de detección registrada correctamente',
     );
   }
 

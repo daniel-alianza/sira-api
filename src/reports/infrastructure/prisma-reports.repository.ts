@@ -114,7 +114,7 @@ export class PrismaReportsRepository implements ReportsRepositoryPort {
       commitmentsCount,
       detectionsCount,
     ] = await Promise.all([
-      this.loadFilterOptions(),
+      this.loadFilterOptions(filter),
       this.prisma.correctiveAction.groupBy({
         by: ['status'],
         where: actionWhere,
@@ -216,7 +216,7 @@ export class PrismaReportsRepository implements ReportsRepositoryPort {
     };
   }
 
-  private async loadFilterOptions() {
+  private async loadFilterOptions(filter?: ReportsQueryFilter) {
     const [companies, areas, responsibles] = await Promise.all([
       this.prisma.company.findMany({
         orderBy: { name: 'asc' },
@@ -227,7 +227,11 @@ export class PrismaReportsRepository implements ReportsRepositoryPort {
         select: { id: true, name: true },
       }),
       this.prisma.user.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          ...(filter?.companyId ? { companyId: filter.companyId } : {}),
+          ...(filter?.areaId ? { areaId: filter.areaId } : {}),
+        },
         orderBy: { name: 'asc' },
         select: { id: true, name: true },
       }),

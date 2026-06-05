@@ -1,5 +1,7 @@
 export { respondCorrectiveActionBodySchema } from './respond-corrective-action.dto';
 export type { RespondCorrectiveActionBodyDto } from './respond-corrective-action.dto';
+export { submitDetectionEvidenceBodySchema } from './submit-detection-evidence.dto';
+export type { SubmitDetectionEvidenceBodyDto } from './submit-detection-evidence.dto';
 export { submitResolutionPhotoBodySchema } from './submit-resolution-photo.dto';
 export type { SubmitResolutionPhotoBodyDto } from './submit-resolution-photo.dto';
 export { reviewCorrectiveClosureBodySchema } from './review-corrective-closure.dto';

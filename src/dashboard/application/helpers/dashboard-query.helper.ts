@@ -37,6 +37,37 @@ export function resolveDefaultPeriod(timeZone: string): {
   return { from, to };
 }
 
+export function buildOperationalQueueWhereInput(
+  filter: DashboardQueryFilter,
+): Prisma.CorrectiveActionWhereInput {
+  const detectionFilter: Prisma.DetectionWhereInput = {};
+
+  if (filter.companyId) {
+    detectionFilter.companyId = filter.companyId;
+  }
+
+  if (filter.areaId) {
+    detectionFilter.areaId = filter.areaId;
+  }
+
+  if (filter.responsibleId) {
+    detectionFilter.responsibleId = filter.responsibleId;
+  }
+
+  if (filter.detectionType) {
+    detectionFilter.type =
+      filter.detectionType === 'unsafe_act'
+        ? DetectionType.UNSAFE_ACT
+        : DetectionType.UNSAFE_CONDITION;
+  }
+
+  if (Object.keys(detectionFilter).length === 0) {
+    return {};
+  }
+
+  return { detection: detectionFilter };
+}
+
 export function buildActionWhereInput(
   filter: DashboardQueryFilter,
   rangeStart: Date,

@@ -36,3 +36,15 @@ export function resolveCorrectiveActionsFilter(
 export function isResponsibleRole(roleName: string): boolean {
   return roleName === ROLE_RESPONSIBLE;
 }
+
+export function assertCanManageDetectionEvidence(roleName: string | null): void {
+  if (!roleName) {
+    throw new ForbiddenException('Rol no válido');
+  }
+
+  if (roleName !== ROLE_ADMINISTRATOR && roleName !== ROLE_INSPECTOR) {
+    throw new ForbiddenException(
+      'Solo inspectores y administradores pueden gestionar la evidencia de detección',
+    );
+  }
+}

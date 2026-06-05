@@ -19,11 +19,16 @@ import {
   zonedLocalDateTimeToUtc,
 } from '../../common/days-and-hours-work';
 import {
+  buildDashboardOpenActions,
+  formatWalkthroughDateOnly,
+} from '../application/helpers/build-dashboard-open-actions.helper';
+import {
   buildDashboardIaSlimContext,
   buildDashboardIaSlimFilters,
 } from '../application/helpers/build-dashboard-ia-slim-context.helper';
 import {
   buildActionWhereInput,
+  buildOperationalQueueWhereInput,
   computeComplianceRate,
   getMonthLabel,
   parseDateOnly,
@@ -63,8 +68,10 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
 
     return {
       period: context.period,
+      firstWalkthroughDate: context.firstWalkthroughDate,
       filterOptions: context.filterOptions,
       kpis: context.kpis,
+      openActions: context.openActions,
       areaCompliance: context.areaCompliance,
       commitmentDateRequests: context.commitmentDateRequests,
       operationalQueues: context.operationalQueues,
@@ -125,10 +132,12 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
     rangeEnd.setUTCHours(23, 59, 59, 999);
 
     const actionWhere = buildActionWhereInput(filter, rangeStart, rangeEnd);
+    const operationalQueueWhere = buildOperationalQueueWhereInput(filter);
     const now = new Date();
 
     const [
       filterOptions,
+      firstWalkthrough,
       statusGroups,
       walkthroughsCount,
       actions,
@@ -139,7 +148,11 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
       expiredActions,
       upcomingDueActions,
     ] = await Promise.all([
-      this.loadFilterOptions(),
+      this.loadFilterOptions(filter),
+      this.prisma.walkthrough.findFirst({
+        orderBy: { startedAt: 'asc' },
+        select: { startedAt: true },
+      }),
       this.prisma.correctiveAction.groupBy({
         by: ['status'],
         where: actionWhere,
@@ -179,6 +192,7 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
               createdAt: true,
               areaId: true,
               responsibleId: true,
+              evidencePhotoBlobId: true,
               area: { select: { name: true } },
               responsible: { select: { name: true } },
               walkthrough: { select: { folio: true } },
@@ -197,9 +211,9 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
         },
       }),
       this.loadCommitmentDateRequests(actionWhere),
-      this.loadPendingSignatureActions(actionWhere),
-      this.loadClosureReviewActions(actionWhere),
-      this.loadExpiredActions(actionWhere, now, resolvedTimeZone),
+      this.loadPendingSignatureActions(operationalQueueWhere),
+      this.loadClosureReviewActions(operationalQueueWhere),
+      this.loadExpiredActions(operationalQueueWhere, now, resolvedTimeZone),
       this.loadUpcomingDueActions(actionWhere, now),
     ]);
 
@@ -220,10 +234,16 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
       resolvedTimeZone,
     );
 
+    const firstWalkthroughDate = firstWalkthrough
+      ? formatWalkthroughDateOnly(firstWalkthrough.startedAt, resolvedTimeZone)
+      : null;
+
     return {
       period: { from: dateFrom, to: dateTo },
+      firstWalkthroughDate,
       filterOptions,
       kpis,
+      openActions: buildDashboardOpenActions(actions),
       areaCompliance,
       commitmentDateRequests: commitmentChanges,
       operationalQueues: {
@@ -236,7 +256,7 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
     };
   }
 
-  private async loadFilterOptions() {
+  private async loadFilterOptions(filter?: DashboardQueryFilter) {
     const [companies, areas, responsibles] = await Promise.all([
       this.prisma.company.findMany({
         orderBy: { name: 'asc' },
@@ -247,7 +267,11 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
         select: { id: true, name: true },
       }),
       this.prisma.user.findMany({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          ...(filter?.companyId ? { companyId: filter.companyId } : {}),
+          ...(filter?.areaId ? { areaId: filter.areaId } : {}),
+        },
         orderBy: { name: 'asc' },
         select: { id: true, name: true },
       }),
@@ -336,11 +360,11 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
   }
 
   private async loadPendingSignatureActions(
-    actionWhere: Prisma.CorrectiveActionWhereInput,
+    queueWhere: Prisma.CorrectiveActionWhereInput,
   ) {
     const actions = await this.prisma.correctiveAction.findMany({
       where: {
-        ...actionWhere,
+        ...queueWhere,
         status: CorrectiveActionStatus.PENDING_ACCEPTANCE,
       },
       orderBy: { createdAt: 'desc' },
@@ -371,11 +395,11 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
   }
 
   private async loadClosureReviewActions(
-    actionWhere: Prisma.CorrectiveActionWhereInput,
+    queueWhere: Prisma.CorrectiveActionWhereInput,
   ) {
     const actions = await this.prisma.correctiveAction.findMany({
       where: {
-        ...actionWhere,
+        ...queueWhere,
         status: CorrectiveActionStatus.CLOSURE_REVIEW,
       },
       orderBy: { updatedAt: 'desc' },
@@ -408,13 +432,13 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
   }
 
   private async loadExpiredActions(
-    actionWhere: Prisma.CorrectiveActionWhereInput,
+    queueWhere: Prisma.CorrectiveActionWhereInput,
     now: Date,
     timeZone: string,
   ) {
     const actions = await this.prisma.correctiveAction.findMany({
       where: {
-        ...actionWhere,
+        ...queueWhere,
         status: CorrectiveActionStatus.EXPIRED,
       },
       orderBy: { updatedAt: 'desc' },
@@ -606,6 +630,7 @@ function buildAreaCompliance(
         compliance,
         nonCompliance: 100 - compliance,
         actionsTotal: area.actionsTotal,
+        closedActions: area.closedActions,
         expired: area.expired,
         trend: '—',
       };
@@ -624,6 +649,8 @@ function buildCharts(
     name: string;
     compliance: number;
     nonCompliance: number;
+    actionsTotal: number;
+    closedActions: number;
   }[],
   statusGroups: { status: CorrectiveActionStatus; _count: { _all: number } }[],
   upcomingDueActions: { currentCommitmentDate: Date | null }[],
@@ -658,9 +685,11 @@ function buildCharts(
   });
 
   const complianceByArea = areaCompliance.map((area) => ({
-    label: truncateAreaLabel(area.name),
+    label: area.name,
     compliance: area.compliance,
     nonCompliance: area.nonCompliance,
+    actionsTotal: area.actionsTotal,
+    closedActions: area.closedActions,
   }));
 
   const groupedStatus = new Map<string, number>();

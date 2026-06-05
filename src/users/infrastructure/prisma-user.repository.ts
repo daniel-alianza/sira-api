@@ -4,7 +4,7 @@ import type {
   UpdateUserPayload,
   UserRepositoryPort,
 } from '../application/interfaces/user.port';
-import type { UserPublic } from '../application/interfaces/user.interface';
+import type { UserFilter, UserPublic } from '../application/interfaces/user.interface';
 
 const userPublicSelect = {
   id: true,
@@ -21,8 +21,13 @@ const userPublicSelect = {
 export class PrismaUserRepository implements UserRepositoryPort {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(): Promise<UserPublic[]> {
+  findAll(filter?: UserFilter): Promise<UserPublic[]> {
     return this.prisma.user.findMany({
+      where: {
+        ...(filter?.companyId ? { companyId: filter.companyId } : {}),
+        ...(filter?.areaId ? { areaId: filter.areaId } : {}),
+        ...(filter?.branchId ? { branchId: filter.branchId } : {}),
+      },
       select: userPublicSelect,
       orderBy: { name: 'asc' },
     });

@@ -27,6 +27,11 @@ import {
 } from '../application/helpers/map-commitment-history.helper';
 import { calculateResolutionDurationMinutes } from '../application/helpers/resolution-duration.helper';
 import type {
+  CorrectiveActionForDetectionEvidence,
+  SubmitDetectionEvidenceInput,
+  SubmitDetectionEvidenceResult,
+} from '../application/interfaces/submit-detection-evidence.interface';
+import type {
   CorrectiveActionForRespond,
   RespondCorrectiveActionInput,
   RespondCorrectiveActionResult,
@@ -205,6 +210,71 @@ export class PrismaCorrectiveActionRepository implements CorrectiveActionReposit
     });
 
     return result;
+  }
+
+  async findForDetectionEvidence(
+    actionId: string,
+  ): Promise<CorrectiveActionForDetectionEvidence | null> {
+    const action = await this.prisma.correctiveAction.findUnique({
+      where: { id: actionId },
+      select: {
+        id: true,
+        detectionId: true,
+        detection: {
+          select: { evidencePhotoBlobId: true },
+        },
+      },
+    });
+
+    if (!action) {
+      return null;
+    }
+
+    return {
+      id: action.id,
+      detectionId: action.detectionId,
+      hasDetectionEvidence: Boolean(action.detection.evidencePhotoBlobId),
+    };
+  }
+
+  async submitDetectionEvidence(
+    input: SubmitDetectionEvidenceInput,
+  ): Promise<SubmitDetectionEvidenceResult> {
+    const evidencePhotoBlobId = await this.prisma.$transaction(
+      async (transaction) => {
+        const action = await transaction.correctiveAction.findUnique({
+          where: { id: input.actionId },
+          select: { detectionId: true },
+        });
+
+        if (!action) {
+          throw new Error('CORRECTIVE_ACTION_NOT_FOUND');
+        }
+
+        const blobId = await createMediaBlobInTransaction(transaction, {
+          kind: MediaBlobKind.DETECTION_EVIDENCE,
+          dataUrl: input.evidencePhotoDataUrl,
+          uploadedById: input.userId,
+        });
+
+        await transaction.detection.update({
+          where: { id: action.detectionId },
+          data: { evidencePhotoBlobId: blobId },
+        });
+
+        return blobId;
+      },
+    );
+
+    const evidencePhotoUrl = buildMediaResourcePath(evidencePhotoBlobId);
+
+    if (!evidencePhotoUrl) {
+      throw new Error('DETECTION_EVIDENCE_BLOB_NOT_FOUND');
+    }
+
+    return {
+      evidencePhotoUrl,
+    };
   }
 
   async respondToAction(
@@ -647,6 +717,8 @@ function mapCorrectiveActionRow(action: CorrectiveActionSelected): CorrectiveAct
     commitmentSequence: latestCommitment?.sequenceNumber ?? null,
     assignedAt: formatTourDateLabel(action.detection.createdAt),
     tourDate: formatTourDateLabel(tourStartedAt),
+    evidencePhotoUrl: buildMediaResourcePath(action.detection.evidencePhotoBlobId),
+    resolutionPhotoUrl: buildMediaResourcePath(latestCommitment?.resolutionPhotoBlobId),
   };
 }
 

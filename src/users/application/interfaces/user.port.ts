@@ -1,11 +1,11 @@
-import type { UpdateUserInput, UserPublic } from './user.interface';
+import type { UpdateUserInput, UserFilter, UserPublic } from './user.interface';
 
 export interface UpdateUserPayload extends UpdateUserInput {
   hashedPassword?: string;
 }
 
 export interface UserRepositoryPort {
-  findAll(): Promise<UserPublic[]>;
+  findAll(filter?: UserFilter): Promise<UserPublic[]>;
   findById(id: string): Promise<UserPublic | null>;
   findByEmail(email: string): Promise<{ id: string } | null>;
   findRoleById(roleId: string): Promise<{ id: string } | null>;

@@ -16,6 +16,7 @@ import type {
   TourPeriod,
 } from '../application/interfaces/tours.interface';
 import type { ToursRepositoryPort } from '../application/interfaces/tours.port';
+import { buildMediaResourcePath } from '../../media/application/helpers/build-media-resource-path.helper';
 import {
   mapCorrectiveActionStatusFromPrisma,
   mapDetectionTypeFromPrisma,
@@ -136,7 +137,15 @@ export class PrismaRegisterToursRepository implements ToursRepositoryPort {
       select: {
         folio: true,
         type: true,
+        description: true,
+        evidencePhotoBlobId: true,
         createdAt: true,
+        company: {
+          select: { name: true },
+        },
+        branch: {
+          select: { name: true },
+        },
         area: {
           select: { name: true },
         },
@@ -154,6 +163,11 @@ export class PrismaRegisterToursRepository implements ToursRepositoryPort {
             id: true,
             status: true,
             currentCommitmentDate: true,
+            correctiveCommitments: {
+              orderBy: { sequenceNumber: 'desc' },
+              take: 1,
+              select: { resolutionPhotoBlobId: true },
+            },
           },
         },
       },
@@ -164,21 +178,27 @@ export class PrismaRegisterToursRepository implements ToursRepositoryPort {
       .map((detection) => {
         const correctiveAction = detection.correctiveAction!;
         const tourStartedAt = detection.walkthrough.startedAt;
+        const latestCommitment = correctiveAction.correctiveCommitments[0] ?? null;
 
         return {
           id: correctiveAction.id,
           walkthroughFolio: detection.walkthrough.folio,
           detectionFolio: detection.folio,
           detectionType: mapDetectionTypeFromPrisma(detection.type),
+          description: detection.description,
+          companyName: detection.company.name,
+          branchName: detection.branch.name,
+          areaName: detection.area.name,
           status: mapCorrectiveActionStatusFromPrisma(correctiveAction.status),
           responsible: detection.responsible.name,
-          area: detection.area.name,
           tourDate: formatTourDateLabel(tourStartedAt),
           weekdayLabel: resolveWeekdayLabel(tourStartedAt),
           weekdayOrder: resolveWeekdayOrder(tourStartedAt),
           commitmentDate: formatCommitmentDateLabel(
             correctiveAction.currentCommitmentDate,
           ),
+          evidencePhotoUrl: buildMediaResourcePath(detection.evidencePhotoBlobId),
+          resolutionPhotoUrl: buildMediaResourcePath(latestCommitment?.resolutionPhotoBlobId),
         };
       });
   }

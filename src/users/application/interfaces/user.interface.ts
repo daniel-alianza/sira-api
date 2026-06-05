@@ -9,6 +9,12 @@ export interface UserPublic {
   roleId: string;
 }
 
+export interface UserFilter {
+  companyId?: string;
+  areaId?: string;
+  branchId?: string;
+}
+
 export interface UpdateUserInput {
   name?: string;
   email?: string;

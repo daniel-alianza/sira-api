@@ -99,6 +99,8 @@ export interface DashboardComplianceByAreaChartItem {
   readonly label: string;
   readonly compliance: number;
   readonly nonCompliance: number;
+  readonly actionsTotal: number;
+  readonly closedActions: number;
 }
 
 export interface DashboardStatusDistributionItem {
@@ -125,17 +127,40 @@ export interface DashboardCharts {
   readonly upcomingDue: readonly DashboardUpcomingDueItem[];
 }
 
+export type DashboardOpenActionStatus =
+  | 'pending_acceptance'
+  | 'open'
+  | 'pending'
+  | 'expired'
+  | 'closure_review'
+  | 'closed'
+  | 'rejected'
+  | 'reopened';
+
+export interface DashboardOpenActionItem {
+  readonly id: string;
+  readonly detectionFolio: string;
+  readonly walkthroughFolio: string;
+  readonly description: string;
+  readonly status: DashboardOpenActionStatus;
+  readonly areaName: string;
+  readonly responsibleName: string;
+  readonly evidencePhotoUrl: string | null;
+}
+
 export interface DashboardOverview {
   readonly period: {
     readonly from: string;
     readonly to: string;
   };
+  readonly firstWalkthroughDate: string | null;
   readonly filterOptions: {
     readonly companies: readonly DashboardFilterOption[];
     readonly areas: readonly DashboardFilterOption[];
     readonly responsibles: readonly DashboardFilterOption[];
   };
   readonly kpis: DashboardKpis;
+  readonly openActions: readonly DashboardOpenActionItem[];
   readonly areaCompliance: readonly DashboardAreaComplianceItem[];
   readonly commitmentDateRequests: readonly DashboardCommitmentDateRequestItem[];
   readonly operationalQueues: DashboardOperationalQueues;
