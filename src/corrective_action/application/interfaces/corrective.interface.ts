@@ -27,6 +27,9 @@ export interface CorrectiveActionRow {
   readonly commitmentSequence: number | null;
   readonly assignedAt: string;
   readonly tourDate: string;
+  readonly weekdayLabel: string;
+  readonly weekdayOrder: number;
+  readonly responsibleName: string;
   readonly evidencePhotoUrl: string | null;
   readonly resolutionPhotoUrl: string | null;
 }

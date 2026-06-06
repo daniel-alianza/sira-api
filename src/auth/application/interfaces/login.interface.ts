@@ -8,12 +8,18 @@ export interface SessionUserRole {
   name: string;
 }
 
+export interface SessionUserArea {
+  id: string;
+  name: string;
+}
+
 export interface SessionUser {
   id: string;
   name: string;
   email: string;
   companyId: string;
   areaId: string;
+  area: SessionUserArea;
   role: SessionUserRole;
 }
 
@@ -28,6 +34,10 @@ export interface AuthUserRecord {
   areaId: string;
   branchId: string;
   isActive: boolean;
+  area: {
+    id: string;
+    name: string;
+  };
 }
 
 export interface LoginResult {

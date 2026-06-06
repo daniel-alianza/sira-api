@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import { buildApiResponse } from '../../common/helpers/build-api-response';
 import { ROLE_ADMINISTRATOR, ROLE_INSPECTOR } from '../../auth/application/constants/role-names';
+import { CurrentUser } from '../../auth/presentation/decorators/current-user.decorator';
+import type { JwtPayload } from '../../auth/application/interfaces/jwt.auth.port';
 import { Roles } from '../../auth/presentation/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../auth/presentation/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/presentation/guards/roles.guard';
@@ -48,9 +50,13 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles(ROLE_ADMINISTRATOR)
+  @Roles(ROLE_ADMINISTRATOR, ROLE_INSPECTOR)
   @HttpCode(HttpStatus.OK)
-  async update(@Param('id') id: string, @Body() body: unknown) {
+  async update(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
     const parsedBody = updateUserBodySchema.safeParse(body);
 
     if (!parsedBody.success) {
@@ -84,7 +90,11 @@ export class UsersController {
       }),
     };
 
-    const user = await this.updateUserUseCase.execute(id, payload);
+    const user = await this.updateUserUseCase.execute(
+      id,
+      payload,
+      currentUser.roleId,
+    );
 
     return buildApiResponse(user, 'Usuario actualizado correctamente');
   }

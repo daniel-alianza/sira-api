@@ -64,6 +64,7 @@ export class LoginUseCase {
         email: user.email,
         companyId: user.companyId,
         areaId: user.areaId,
+        area: user.area,
         role: user.role,
       },
     };

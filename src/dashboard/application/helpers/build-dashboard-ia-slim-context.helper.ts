@@ -89,7 +89,7 @@ export function buildDashboardIaSlimContext(
   input: BuildDashboardIaSlimContextInput,
 ): DashboardIaContext {
   return {
-    periodScope: 'current_week',
+    periodScope: 'filtered_period',
     analysisScope: input.analysisScope,
     analysisScopeLabel: input.analysisScopeLabel,
     period: input.period,

@@ -54,6 +54,22 @@ function resolveAnalysisScopeLabel(
   }
 }
 
+function mergeDashboardIaFilter(
+  scopedFilter: Pick<
+    DashboardQueryFilter,
+    'companyId' | 'areaId' | 'responsibleId'
+  >,
+  source: DashboardQueryFilter,
+): DashboardQueryFilter {
+  return {
+    ...scopedFilter,
+    dateFrom: source.dateFrom,
+    dateTo: source.dateTo,
+    status: source.status,
+    detectionType: source.detectionType,
+  };
+}
+
 export function resolveDashboardIaQueryFilter(
   input: ResolveDashboardIaQueryFilterInput,
 ): ResolvedDashboardIaQuery {
@@ -61,11 +77,14 @@ export function resolveDashboardIaQueryFilter(
     input.viewerRoleName === ROLE_ADMINISTRATOR ||
     input.viewerRoleName === ROLE_INSPECTOR
   ) {
-    const filter: DashboardQueryFilter = {
-      companyId: input.filter.companyId,
-      areaId: input.filter.areaId,
-      responsibleId: input.filter.responsibleId,
-    };
+    const filter = mergeDashboardIaFilter(
+      {
+        companyId: input.filter.companyId,
+        areaId: input.filter.areaId,
+        responsibleId: input.filter.responsibleId,
+      },
+      input.filter,
+    );
     const analysisScope = resolveAnalysisScope(filter);
 
     return {
@@ -76,11 +95,14 @@ export function resolveDashboardIaQueryFilter(
   }
 
   if (input.viewerRoleName === ROLE_RESPONSIBLE) {
-    const filter: DashboardQueryFilter = {
-      companyId: input.filter.companyId ?? input.viewerCompanyId,
-      areaId: input.filter.areaId ?? input.viewerAreaId,
-      responsibleId: input.filter.responsibleId,
-    };
+    const filter = mergeDashboardIaFilter(
+      {
+        companyId: input.filter.companyId ?? input.viewerCompanyId,
+        areaId: input.filter.areaId ?? input.viewerAreaId,
+        responsibleId: input.filter.responsibleId,
+      },
+      input.filter,
+    );
     const analysisScope = resolveAnalysisScope(filter);
 
     return {

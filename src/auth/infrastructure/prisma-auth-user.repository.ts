@@ -23,6 +23,12 @@ export class PrismaAuthUserRepository implements AuthUserRepositoryPort {
         areaId: true,
         branchId: true,
         isActive: true,
+        area: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         role: {
           select: {
             id: true,
@@ -32,7 +38,7 @@ export class PrismaAuthUserRepository implements AuthUserRepositoryPort {
       },
     });
 
-    if (!user?.role) {
+    if (!user?.role || !user.area) {
       return null;
     }
 
@@ -47,6 +53,7 @@ export class PrismaAuthUserRepository implements AuthUserRepositoryPort {
       branchId: user.branchId,
       isActive: user.isActive,
       role: user.role,
+      area: user.area,
     };
   }
 
@@ -59,6 +66,12 @@ export class PrismaAuthUserRepository implements AuthUserRepositoryPort {
         email: true,
         companyId: true,
         areaId: true,
+        area: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         role: {
           select: {
             id: true,
@@ -68,7 +81,7 @@ export class PrismaAuthUserRepository implements AuthUserRepositoryPort {
       },
     });
 
-    if (!user?.role) {
+    if (!user?.role || !user.area) {
       return null;
     }
 
@@ -78,6 +91,7 @@ export class PrismaAuthUserRepository implements AuthUserRepositoryPort {
       email: user.email,
       companyId: user.companyId,
       areaId: user.areaId,
+      area: user.area,
       role: user.role,
     };
   }

@@ -41,16 +41,21 @@ export interface DashboardAreaComplianceItem {
 
 export interface DashboardCommitmentDateRequestItem {
   readonly id: string;
+  readonly actionId: string;
   readonly actionFolio: string;
   readonly walkthroughFolio: string;
   readonly responsible: string;
   readonly area: string;
+  readonly companyName: string;
+  readonly branchName: string;
   readonly description: string;
   readonly initialDate: string;
   readonly currentDate: string;
   readonly requestedDate: string;
   readonly changeLabel: string;
   readonly reason: string;
+  readonly evidencePhotoUrl: string | null;
+  readonly resolutionPhotoUrl: string | null;
   readonly status: 'pending' | 'review';
 }
 
@@ -212,7 +217,7 @@ export interface DashboardIaStatusDistributionSlim {
 }
 
 export interface DashboardIaContext {
-  readonly periodScope: 'current_week';
+  readonly periodScope: 'filtered_period';
   readonly analysisScope: DashboardIaAnalysisScope;
   readonly analysisScopeLabel: string;
   readonly period: DashboardOverview['period'] & {

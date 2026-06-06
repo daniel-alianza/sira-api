@@ -6,7 +6,6 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { resolveCurrentWeekPeriod } from '../../../common/days-and-hours-work';
 import type { EnvVariables } from '../../../config/env-validation';
 import {
   DASHBOARD_REPOSITORY,
@@ -19,6 +18,7 @@ import { buildIaSummaryCacheKey } from '../helpers/build-ia-summary-cache-key.he
 import { buildStaticDashboardAiSummary } from '../helpers/build-static-dashboard-ai-summary.helper';
 import { shouldUseFallbackHybridNarrative } from '../helpers/build-fallback-hybrid-narrative.helper';
 import { mergeHybridDashboardAiSummary } from '../helpers/merge-hybrid-dashboard-ai-summary.helper';
+import { sanitizeDashboardAiSummaryText } from '../helpers/sanitize-dashboard-ai-summary-text.helper';
 import { sanitizeHybridIaNarrative } from '../helpers/personalize-hybrid-ia-narrative.helper';
 import { resolveDashboardIaQueryFilter } from '../helpers/resolve-dashboard-ia-query-filter.helper';
 import { formatDashboardGeneratedAt } from '../helpers/dashboard-metrics.helper';
@@ -78,7 +78,6 @@ export class GenerateDashboardAiSummaryUseCase {
     input: GenerateDashboardAiSummaryInput,
   ): Promise<DashboardAiSummary> {
     const timeZone = this.configService.get('TIMEZONE', { infer: true });
-    const weekPeriod = resolveCurrentWeekPeriod(timeZone);
     const resolvedIaQuery = resolveDashboardIaQueryFilter({
       filter: input.filter,
       viewerRoleName: input.viewer.roleName,
@@ -95,8 +94,8 @@ export class GenerateDashboardAiSummaryUseCase {
     const metricsFingerprint = buildDashboardMetricsFingerprint(iaContext);
     const cacheKey = buildIaSummaryCacheKey({
       userId: input.userId,
-      periodFrom: weekPeriod.from,
-      periodTo: weekPeriod.to,
+      periodFrom: iaContext.period.from,
+      periodTo: iaContext.period.to,
       filter: resolvedIaQuery.filter,
       metricsFingerprint,
     });
@@ -105,7 +104,10 @@ export class GenerateDashboardAiSummaryUseCase {
       const cachedSummary = await this.iaSummaryCachePort.get(cacheKey);
 
       if (cachedSummary) {
-        return { ...cachedSummary, fromCache: true };
+        return sanitizeDashboardAiSummaryText({
+          ...cachedSummary,
+          fromCache: true,
+        });
       }
     }
 
@@ -119,7 +121,6 @@ export class GenerateDashboardAiSummaryUseCase {
           viewer: input.viewer,
           userId: input.userId,
           timeZone,
-          weekPeriod,
           resolvedFilter: resolvedIaQuery.filter,
         })
       : await this.buildFullIaSummary({
@@ -146,7 +147,6 @@ export class GenerateDashboardAiSummaryUseCase {
     readonly viewer: DashboardIaViewer;
     readonly userId: string;
     readonly timeZone: string;
-    readonly weekPeriod: { readonly from: string; readonly to: string };
     readonly resolvedFilter: DashboardQueryFilter;
   }): Promise<DashboardAiSummary> {
     const staticPart = buildStaticDashboardAiSummary({
@@ -156,8 +156,8 @@ export class GenerateDashboardAiSummaryUseCase {
 
     const metricsFingerprint = buildDashboardMetricsFingerprint(input.iaContext);
     const batchKey = buildIaSummaryBatchCacheKey({
-      periodFrom: input.weekPeriod.from,
-      periodTo: input.weekPeriod.to,
+      periodFrom: input.iaContext.period.from,
+      periodTo: input.iaContext.period.to,
       filter: input.resolvedFilter,
     });
 
@@ -198,12 +198,14 @@ export class GenerateDashboardAiSummaryUseCase {
 
     const sanitizedNarrative = sanitizeHybridIaNarrative(narrative);
 
-    return mergeHybridDashboardAiSummary({
-      generatedAt: formatDashboardGeneratedAt(new Date(), input.timeZone),
-      staticPart,
-      narrative: sanitizedNarrative,
-      fromCache: fromBatch,
-    });
+    return sanitizeDashboardAiSummaryText(
+      mergeHybridDashboardAiSummary({
+        generatedAt: formatDashboardGeneratedAt(new Date(), input.timeZone),
+        staticPart,
+        narrative: sanitizedNarrative,
+        fromCache: fromBatch,
+      }),
+    );
   }
 
   private async buildFullIaSummary(input: {
@@ -234,7 +236,7 @@ export class GenerateDashboardAiSummaryUseCase {
       );
     }
 
-    return {
+    return sanitizeDashboardAiSummaryText({
       generatedAt: formatDashboardGeneratedAt(new Date(), input.timeZone),
       headline: parsedSummary.headline,
       paragraphs: parsedSummary.paragraphs,
@@ -242,7 +244,7 @@ export class GenerateDashboardAiSummaryUseCase {
       trendNote: parsedSummary.trendNote,
       riskNote: parsedSummary.riskNote,
       fromCache: false,
-    };
+    });
   }
 
   private async assertRateLimit(userId: string): Promise<void> {

@@ -8,7 +8,7 @@ export interface UserRepositoryPort {
   findAll(filter?: UserFilter): Promise<UserPublic[]>;
   findById(id: string): Promise<UserPublic | null>;
   findByEmail(email: string): Promise<{ id: string } | null>;
-  findRoleById(roleId: string): Promise<{ id: string } | null>;
+  findRoleById(roleId: string): Promise<{ id: string; name: string } | null>;
   validateOrganizationIds(
     companyId: string,
     areaId: string,

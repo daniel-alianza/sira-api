@@ -9,6 +9,9 @@ import { SubmitDetectionEvidenceUseCase } from './application/use-cases/submit-d
 import { SubmitResolutionPhotoUseCase } from './application/use-cases/submit-resolution-photo.use-case';
 import { ReassignResponsibleUseCase } from './application/use-cases/reassign-responsible.use-case';
 import { GetClosedActionsUseCase } from './application/use-cases/get-closed-actions.use-case';
+import { NotifyCorrectiveActionResponsibleUseCase } from './application/use-cases/notify-corrective-action-responsible.use-case';
+import { DirectCloseCorrectiveActionUseCase } from './application/use-cases/direct-close-corrective-action.use-case';
+import { NotifyCorrectiveActionsResponsibleBulkUseCase } from './application/use-cases/notify-corrective-actions-responsible-bulk.use-case';
 import { PrismaCorrectiveActionRepository } from './infrastructure/prisma-corrective-action.repository';
 import { CorrectiveController } from './presentation/corrective.controller';
 
@@ -24,6 +27,9 @@ import { CorrectiveController } from './presentation/corrective.controller';
     ReviewCorrectiveClosureUseCase,
     ReassignResponsibleUseCase,
     GetClosedActionsUseCase,
+    NotifyCorrectiveActionResponsibleUseCase,
+    NotifyCorrectiveActionsResponsibleBulkUseCase,
+    DirectCloseCorrectiveActionUseCase,
     {
       provide: CORRECTIVE_ACTION_REPOSITORY,
       useClass: PrismaCorrectiveActionRepository,

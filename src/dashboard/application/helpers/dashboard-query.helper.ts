@@ -37,6 +37,31 @@ export function resolveDefaultPeriod(timeZone: string): {
   return { from, to };
 }
 
+export function buildDashboardPeriodLabel(
+  from: string,
+  to: string,
+  timeZone: string,
+): string {
+  const fromLabel = formatShortDashboardDateLabel(from, timeZone);
+  const toLabel = formatShortDashboardDateLabel(to, timeZone);
+
+  return `en el periodo (${fromLabel} – ${toLabel})`;
+}
+
+function formatShortDashboardDateLabel(
+  calendarDate: string,
+  timeZone: string,
+): string {
+  const [year, month, day] = calendarDate.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  return new Intl.DateTimeFormat('es-MX', {
+    timeZone,
+    day: '2-digit',
+    month: 'short',
+  }).format(date);
+}
+
 export function buildOperationalQueueWhereInput(
   filter: DashboardQueryFilter,
 ): Prisma.CorrectiveActionWhereInput {

@@ -13,6 +13,8 @@ import {
 import {
   formatCommitmentDateLabel,
   formatTourDateLabel,
+  resolveWeekdayLabel,
+  resolveWeekdayOrder,
   formatTourDateTimeLabel,
 } from '../../tours/application/helpers/tour-date.helper';
 import type {
@@ -48,6 +50,13 @@ import type {
   SubmitResolutionPhotoResult,
 } from '../application/interfaces/submit-resolution-photo.interface';
 import type { CorrectiveActionRepositoryPort } from '../application/interfaces/corrective.port';
+import type { CorrectiveActionForNotify } from '../application/interfaces/notify-corrective-action.interface';
+import type {
+  CorrectiveActionForDirectClose,
+  DirectCloseCorrectiveActionInput,
+  DirectCloseCorrectiveActionResult,
+} from '../application/interfaces/direct-close-corrective-action.interface';
+import { DIRECT_CLOSE_REASON_PREFIX } from '../application/constants/she-area.constants';
 
 @Injectable()
 export class PrismaCorrectiveActionRepository implements CorrectiveActionRepositoryPort {
@@ -534,6 +543,178 @@ export class PrismaCorrectiveActionRepository implements CorrectiveActionReposit
       };
     });
   }
+
+  async findForNotify(actionId: string): Promise<CorrectiveActionForNotify | null> {
+    const action = await this.prisma.correctiveAction.findUnique({
+      where: { id: actionId },
+      select: {
+        id: true,
+        status: true,
+        detection: {
+          select: {
+            folio: true,
+            responsible: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!action) {
+      return null;
+    }
+
+    return {
+      id: action.id,
+      status: mapCorrectiveActionStatusFromPrisma(action.status),
+      detectionFolio: action.detection.folio,
+      responsibleId: action.detection.responsible.id,
+      responsibleName: action.detection.responsible.name,
+      responsibleEmail: action.detection.responsible.email,
+    };
+  }
+
+  async findManyForNotify(
+    actionIds: readonly string[],
+  ): Promise<readonly CorrectiveActionForNotify[]> {
+    const actions = await this.prisma.correctiveAction.findMany({
+      where: { id: { in: [...actionIds] } },
+      select: {
+        id: true,
+        status: true,
+        detection: {
+          select: {
+            folio: true,
+            responsible: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return actions.map((action) => ({
+      id: action.id,
+      status: mapCorrectiveActionStatusFromPrisma(action.status),
+      detectionFolio: action.detection.folio,
+      responsibleId: action.detection.responsible.id,
+      responsibleName: action.detection.responsible.name,
+      responsibleEmail: action.detection.responsible.email,
+    }));
+  }
+
+  findUserAreaNameById(userId: string): Promise<string | null> {
+    return this.prisma.user
+      .findUnique({
+        where: { id: userId },
+        select: {
+          area: {
+            select: { name: true },
+          },
+        },
+      })
+      .then((user) => user?.area.name ?? null);
+  }
+
+  async findForDirectClose(
+    actionId: string,
+  ): Promise<CorrectiveActionForDirectClose | null> {
+    const action = await this.prisma.correctiveAction.findUnique({
+      where: { id: actionId },
+      select: {
+        id: true,
+        status: true,
+        correctivePlan: true,
+        correctiveCommitments: {
+          orderBy: { sequenceNumber: 'desc' },
+          take: 1,
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!action) {
+      return null;
+    }
+
+    return {
+      id: action.id,
+      status: mapCorrectiveActionStatusFromPrisma(action.status),
+      correctivePlan: action.correctivePlan,
+      latestCommitmentId: action.correctiveCommitments[0]?.id ?? null,
+    };
+  }
+
+  async directCloseAction(
+    input: DirectCloseCorrectiveActionInput,
+  ): Promise<DirectCloseCorrectiveActionResult> {
+    const reasonLabel = `${DIRECT_CLOSE_REASON_PREFIX} ${input.reason}`;
+
+    const result = await this.prisma.$transaction(async (transaction) => {
+      const action = await transaction.correctiveAction.findUnique({
+        where: { id: input.actionId },
+        select: {
+          id: true,
+          status: true,
+          correctivePlan: true,
+          correctiveCommitments: {
+            orderBy: { sequenceNumber: 'desc' },
+            take: 1,
+            select: { id: true },
+          },
+        },
+      });
+
+      if (!action) {
+        throw new Error('CORRECTIVE_ACTION_NOT_FOUND');
+      }
+
+      if (action.status === PrismaCorrectiveActionStatus.CLOSED) {
+        throw new Error('CORRECTIVE_ACTION_ALREADY_CLOSED');
+      }
+
+      const latestCommitment = action.correctiveCommitments[0] ?? null;
+
+      if (latestCommitment) {
+        await transaction.correctiveCommitment.update({
+          where: { id: latestCommitment.id },
+          data: { changeReason: reasonLabel },
+        });
+      } else {
+        const existingPlan = action.correctivePlan?.trim();
+        const nextPlan = existingPlan
+          ? `${existingPlan}\n\n[${reasonLabel}]`
+          : `[${reasonLabel}]`;
+
+        await transaction.correctiveAction.update({
+          where: { id: action.id },
+          data: { correctivePlan: nextPlan },
+        });
+      }
+
+      const updatedAction = await transaction.correctiveAction.update({
+        where: { id: action.id },
+        data: { status: PrismaCorrectiveActionStatus.CLOSED },
+        select: { id: true, status: true },
+      });
+
+      return {
+        id: updatedAction.id,
+        status: mapCorrectiveActionStatusFromPrisma(updatedAction.status),
+      };
+    });
+
+    return result;
+  }
 }
 
 function buildActionFindWhere(
@@ -717,6 +898,9 @@ function mapCorrectiveActionRow(action: CorrectiveActionSelected): CorrectiveAct
     commitmentSequence: latestCommitment?.sequenceNumber ?? null,
     assignedAt: formatTourDateLabel(action.detection.createdAt),
     tourDate: formatTourDateLabel(tourStartedAt),
+    weekdayLabel: resolveWeekdayLabel(tourStartedAt),
+    weekdayOrder: resolveWeekdayOrder(tourStartedAt),
+    responsibleName: action.detection.responsible.name,
     evidencePhotoUrl: buildMediaResourcePath(action.detection.evidencePhotoBlobId),
     resolutionPhotoUrl: buildMediaResourcePath(latestCommitment?.resolutionPhotoBlobId),
   };

@@ -32,16 +32,17 @@ function buildHeadline(
   scopeReference: string,
 ): string {
   const { kpis } = context;
+  const periodReference = context.period.label;
 
   if (kpis.totalActions === 0) {
-    return `${greeting}, sin actividad registrada en ${scopeReference} esta semana`;
+    return `${greeting}, sin actividad registrada en ${scopeReference} ${periodReference}`;
   }
 
   if (kpis.expiredActions > 0) {
-    return `${greeting}, ${kpis.expiredActions} acciones vencidas en ${scopeReference}`;
+    return `${greeting}, ${kpis.expiredActions} acciones vencidas en ${scopeReference} ${periodReference}`;
   }
 
-  return `${greeting}, ${kpis.totalActions} acciones registradas en ${scopeReference} esta semana`;
+  return `${greeting}, ${kpis.totalActions} acciones registradas en ${scopeReference} ${periodReference}`;
 }
 
 function buildHighlights(context: DashboardIaContext): DashboardAiHighlight[] {

@@ -18,6 +18,8 @@ export function buildIaSummaryCacheKey(
     input.filter.companyId ?? '_',
     input.filter.areaId ?? '_',
     input.filter.responsibleId ?? '_',
+    input.filter.status ?? '_',
+    input.filter.detectionType ?? '_',
     input.metricsFingerprint,
   ].join(':');
 }

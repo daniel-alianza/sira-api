@@ -23,6 +23,9 @@ import { SubmitDetectionEvidenceUseCase } from '../application/use-cases/submit-
 import { SubmitResolutionPhotoUseCase } from '../application/use-cases/submit-resolution-photo.use-case';
 import { ReassignResponsibleUseCase } from '../application/use-cases/reassign-responsible.use-case';
 import { GetClosedActionsUseCase } from '../application/use-cases/get-closed-actions.use-case';
+import { NotifyCorrectiveActionResponsibleUseCase } from '../application/use-cases/notify-corrective-action-responsible.use-case';
+import { NotifyCorrectiveActionsResponsibleBulkUseCase } from '../application/use-cases/notify-corrective-actions-responsible-bulk.use-case';
+import { DirectCloseCorrectiveActionUseCase } from '../application/use-cases/direct-close-corrective-action.use-case';
 import {
   respondCorrectiveActionBodySchema,
   reviewCorrectiveClosureBodySchema,
@@ -30,6 +33,8 @@ import {
   submitResolutionPhotoBodySchema,
   reassignResponsibleBodySchema,
   actionsQuerySchema,
+  notifyCorrectiveActionsBulkBodySchema,
+  directCloseCorrectiveActionBodySchema,
 } from './dtos';
 
 @Controller('corrective-actions')
@@ -44,6 +49,9 @@ export class CorrectiveController {
     private readonly reviewCorrectiveClosureUseCase: ReviewCorrectiveClosureUseCase,
     private readonly reassignResponsibleUseCase: ReassignResponsibleUseCase,
     private readonly getClosedActionsUseCase: GetClosedActionsUseCase,
+    private readonly notifyCorrectiveActionResponsibleUseCase: NotifyCorrectiveActionResponsibleUseCase,
+    private readonly notifyCorrectiveActionsResponsibleBulkUseCase: NotifyCorrectiveActionsResponsibleBulkUseCase,
+    private readonly directCloseCorrectiveActionUseCase: DirectCloseCorrectiveActionUseCase,
   ) {}
 
   @Get()
@@ -92,6 +100,31 @@ export class CorrectiveController {
     });
 
     return buildApiResponse(rows, 'Acciones cerradas obtenidas correctamente');
+  }
+
+  @Post('notify-responsible-bulk')
+  @HttpCode(HttpStatus.OK)
+  async notifyResponsibleBulk(
+    @CurrentUser() currentUser: JwtPayload,
+    @Body() body: unknown,
+  ) {
+    const parsedBody = notifyCorrectiveActionsBulkBodySchema.safeParse(body);
+
+    if (!parsedBody.success) {
+      const firstIssue = parsedBody.error.issues[0];
+      const field = firstIssue?.path.join('.') ?? 'body';
+      throw new BadRequestException(`${field}: ${firstIssue?.message}`);
+    }
+
+    const result = await this.notifyCorrectiveActionsResponsibleBulkUseCase.execute(
+      parsedBody.data.actionIds,
+      currentUser.roleId,
+    );
+
+    return buildApiResponse(
+      result,
+      `Se notificaron ${result.notifiedCount} responsable(s) correctamente`,
+    );
   }
 
   @Get(':id')
@@ -248,5 +281,49 @@ export class CorrectiveController {
     });
 
     return buildApiResponse(null, 'Responsable reasignado correctamente');
+  }
+
+  @Post(':id/direct-close')
+  @HttpCode(HttpStatus.OK)
+  async directClose(
+    @Param('id') actionId: string,
+    @CurrentUser() currentUser: JwtPayload,
+    @Body() body: unknown,
+  ) {
+    const parsedBody = directCloseCorrectiveActionBodySchema.safeParse(body);
+
+    if (!parsedBody.success) {
+      const firstIssue = parsedBody.error.issues[0];
+      const field = firstIssue?.path.join('.') ?? 'body';
+      throw new BadRequestException(`${field}: ${firstIssue?.message}`);
+    }
+
+    const result = await this.directCloseCorrectiveActionUseCase.execute({
+      actionId,
+      userId: currentUser.sub,
+      reason: parsedBody.data.reason,
+    });
+
+    return buildApiResponse(
+      result,
+      'Acción correctiva cerrada directamente por SHE',
+    );
+  }
+
+  @Post(':id/notify-responsible')
+  @HttpCode(HttpStatus.OK)
+  async notifyResponsible(
+    @Param('id') actionId: string,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    const result = await this.notifyCorrectiveActionResponsibleUseCase.execute(
+      actionId,
+      currentUser.roleId,
+    );
+
+    return buildApiResponse(
+      result,
+      'Responsable notificado correctamente',
+    );
   }
 }

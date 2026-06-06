@@ -10,3 +10,7 @@ export { reassignResponsibleBodySchema } from './reassign-responsible.dto';
 export type { ReassignResponsibleBodyDto } from './reassign-responsible.dto';
 export { actionsQuerySchema } from './actions-query.dto';
 export type { ActionsQueryDto } from './actions-query.dto';
+export { notifyCorrectiveActionsBulkBodySchema } from './notify-corrective-actions-bulk.dto';
+export type { NotifyCorrectiveActionsBulkBodyDto } from './notify-corrective-actions-bulk.dto';
+export { directCloseCorrectiveActionBodySchema } from './direct-close-corrective-action.dto';
+export type { DirectCloseCorrectiveActionBodyDto } from './direct-close-corrective-action.dto';

@@ -47,10 +47,10 @@ export class PrismaUserRepository implements UserRepositoryPort {
     });
   }
 
-  findRoleById(roleId: string): Promise<{ id: string } | null> {
+  findRoleById(roleId: string): Promise<{ id: string; name: string } | null> {
     return this.prisma.role.findUnique({
       where: { id: roleId },
-      select: { id: true },
+      select: { id: true, name: true },
     });
   }
 

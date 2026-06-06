@@ -1,10 +1,19 @@
 import {
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PasswordRegisterUseCase } from '../../../auth/application/use-cases/password-register.use-case';
+import {
+  ROLE_ADMINISTRATOR,
+  ROLE_INSPECTOR,
+} from '../../../auth/application/constants/role-names';
+import {
+  assertUserUpdatePermissions,
+  stripInspectorRestrictedFields,
+} from '../helpers/assert-user-update-permissions.helper';
 import type { UpdateUserInput, UserPublic } from '../interfaces/user.interface';
 import {
   USER_REPOSITORY,
@@ -19,38 +28,69 @@ export class UpdateUserUseCase {
     private readonly passwordRegisterUseCase: PasswordRegisterUseCase,
   ) {}
 
-  async execute(id: string, input: UpdateUserInput): Promise<UserPublic> {
+  async execute(
+    id: string,
+    input: UpdateUserInput,
+    requesterRoleId: string,
+  ): Promise<UserPublic> {
+    const requesterRole = await this.userRepository.findRoleById(requesterRoleId);
+
+    if (!requesterRole) {
+      throw new ForbiddenException('Rol no válido');
+    }
+
     const existingUser = await this.userRepository.findById(id);
 
     if (!existingUser) {
       throw new NotFoundException('Usuario no encontrado');
     }
 
-    if (input.email && input.email !== existingUser.email) {
-      const emailTaken = await this.userRepository.findByEmail(input.email);
+    const targetRole = await this.userRepository.findRoleById(existingUser.roleId);
+    const sanitizedInput = stripInspectorRestrictedFields(
+      requesterRole.name,
+      input,
+    );
+
+    assertUserUpdatePermissions(
+      requesterRole.name,
+      targetRole?.name ?? null,
+      sanitizedInput,
+    );
+
+    if (sanitizedInput.email && sanitizedInput.email !== existingUser.email) {
+      const emailTaken = await this.userRepository.findByEmail(sanitizedInput.email);
 
       if (emailTaken) {
         throw new ConflictException('El correo electrónico ya está registrado');
       }
     }
 
-    if (input.companyId || input.areaId || input.branchId) {
+    if (sanitizedInput.companyId || sanitizedInput.areaId || sanitizedInput.branchId) {
       await this.userRepository.validateOrganizationIds(
-        input.companyId ?? existingUser.companyId,
-        input.areaId ?? existingUser.areaId,
-        input.branchId ?? existingUser.branchId,
+        sanitizedInput.companyId ?? existingUser.companyId,
+        sanitizedInput.areaId ?? existingUser.areaId,
+        sanitizedInput.branchId ?? existingUser.branchId,
       );
     }
 
-    if (input.roleId) {
-      const role = await this.userRepository.findRoleById(input.roleId);
+    if (sanitizedInput.roleId) {
+      const role = await this.userRepository.findRoleById(sanitizedInput.roleId);
 
       if (!role) {
         throw new NotFoundException('Rol no encontrado');
       }
+
+      if (
+        requesterRole.name !== ROLE_ADMINISTRATOR &&
+        role.name !== ROLE_INSPECTOR
+      ) {
+        throw new ForbiddenException(
+          'Solo puedes asignar el rol Inspector',
+        );
+      }
     }
 
-    const { password, ...updateData } = input;
+    const { password, ...updateData } = sanitizedInput;
 
     const hashedPassword =
       password !== undefined

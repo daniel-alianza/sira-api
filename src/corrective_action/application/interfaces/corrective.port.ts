@@ -4,6 +4,12 @@ import type {
   FindCorrectiveActionsFilter,
 } from './corrective.interface';
 import type {
+  CorrectiveActionForDirectClose,
+  DirectCloseCorrectiveActionInput,
+  DirectCloseCorrectiveActionResult,
+} from './direct-close-corrective-action.interface';
+import type { CorrectiveActionForNotify } from './notify-corrective-action.interface';
+import type {
   CorrectiveActionForRespond,
   RespondCorrectiveActionInput,
   RespondCorrectiveActionResult,
@@ -58,6 +64,15 @@ export interface CorrectiveActionRepositoryPort {
   findClosed(
     filter: FindCorrectiveActionsFilter,
   ): Promise<import('./corrective.interface').ClosedActionSummaryRow[]>;
+  findForNotify(actionId: string): Promise<CorrectiveActionForNotify | null>;
+  findManyForNotify(
+    actionIds: readonly string[],
+  ): Promise<readonly CorrectiveActionForNotify[]>;
+  findUserAreaNameById(userId: string): Promise<string | null>;
+  findForDirectClose(actionId: string): Promise<CorrectiveActionForDirectClose | null>;
+  directCloseAction(
+    input: DirectCloseCorrectiveActionInput,
+  ): Promise<DirectCloseCorrectiveActionResult>;
 }
 
 export const CORRECTIVE_ACTION_REPOSITORY = Symbol(

@@ -5,6 +5,7 @@ import {
   type Prisma,
 } from '../../../generated/prisma/client';
 import type { EnvVariables } from '../../config/env-validation';
+import { buildMediaResourcePath } from '../../media/application/helpers/build-media-resource-path.helper';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import {
   formatCommitmentDateLabel,
@@ -13,7 +14,6 @@ import {
 import {
   countBusinessDaysBetween,
   listCalendarDaysInRange,
-  resolveCurrentWeekPeriod,
   resolveWeekdayShortLabel,
   TIME_METRICS_BASIS_LABEL,
   zonedLocalDateTimeToUtc,
@@ -31,6 +31,7 @@ import {
   buildOperationalQueueWhereInput,
   computeComplianceRate,
   getMonthLabel,
+  buildDashboardPeriodLabel,
   parseDateOnly,
   resolveDefaultPeriod,
   truncateAreaLabel,
@@ -81,15 +82,7 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
 
   async getIaContext(query: DashboardIaContextQuery): Promise<DashboardIaContext> {
     const timeZone = this.configService.get('TIMEZONE', { infer: true });
-    const weekPeriod = resolveCurrentWeekPeriod(timeZone);
-    const weekFilter: DashboardQueryFilter = {
-      companyId: query.filter.companyId,
-      areaId: query.filter.areaId,
-      responsibleId: query.filter.responsibleId,
-      dateFrom: weekPeriod.from,
-      dateTo: weekPeriod.to,
-    };
-    const context = await this.buildDashboardData(weekFilter);
+    const context = await this.buildDashboardData(query.filter);
     const topExpiredAreas = context.areaCompliance
       .filter((area) => area.expired > 0)
       .sort((left, right) => right.expired - left.expired)
@@ -100,9 +93,13 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
       analysisScope: query.analysisScope,
       analysisScopeLabel: query.analysisScopeLabel,
       period: {
-        from: weekPeriod.from,
-        to: weekPeriod.to,
-        label: weekPeriod.label,
+        from: context.period.from,
+        to: context.period.to,
+        label: buildDashboardPeriodLabel(
+          context.period.from,
+          context.period.to,
+          timeZone,
+        ),
       },
       timeMetricsBasis: TIME_METRICS_BASIS_LABEL,
       filters: buildDashboardIaSlimFilters(query.filter),
@@ -112,8 +109,8 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
       operationalQueues: context.operationalQueues,
       weeklyTrend: buildWeeklyActionsTrend(
         context.actionsForTrend,
-        weekPeriod.from,
-        weekPeriod.to,
+        context.period.from,
+        context.period.to,
         timeZone,
       ),
       statusDistribution: context.charts.statusDistribution,
@@ -311,21 +308,28 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
         signedAt: true,
         correctiveAction: {
           select: {
+            id: true,
             status: true,
             currentCommitmentDate: true,
             detection: {
               select: {
                 folio: true,
                 description: true,
+                evidencePhotoBlobId: true,
+                company: { select: { name: true } },
+                branch: { select: { name: true } },
                 area: { select: { name: true } },
                 responsible: { select: { name: true } },
                 walkthrough: { select: { folio: true } },
               },
             },
             correctiveCommitments: {
-              where: { sequenceNumber: 0 },
-              take: 1,
-              select: { commitmentDate: true },
+              orderBy: { sequenceNumber: 'desc' },
+              select: {
+                sequenceNumber: true,
+                commitmentDate: true,
+                resolutionPhotoBlobId: true,
+              },
             },
           },
         },
@@ -334,14 +338,20 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
 
     return commitments.map((commitment) => {
       const action = commitment.correctiveAction;
-      const initialCommitment = action.correctiveCommitments[0] ?? null;
+      const initialCommitment =
+        action.correctiveCommitments.find((entry) => entry.sequenceNumber === 0) ??
+        null;
+      const latestCommitment = action.correctiveCommitments[0] ?? null;
 
       return {
         id: commitment.id,
+        actionId: action.id,
         actionFolio: action.detection.folio,
         walkthroughFolio: action.detection.walkthrough.folio,
         responsible: action.detection.responsible.name,
         area: action.detection.area.name,
+        companyName: action.detection.company.name,
+        branchName: action.detection.branch.name,
         description: action.detection.description,
         initialDate: formatCommitmentDateLabel(
           initialCommitment?.commitmentDate ?? commitment.commitmentDate,
@@ -351,6 +361,12 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
         requestedDate: formatCommitmentDateLabel(commitment.commitmentDate) ?? '—',
         changeLabel: `F${commitment.sequenceNumber}`,
         reason: commitment.changeReason ?? 'Sin motivo registrado',
+        evidencePhotoUrl: buildMediaResourcePath(
+          action.detection.evidencePhotoBlobId,
+        ),
+        resolutionPhotoUrl: buildMediaResourcePath(
+          latestCommitment?.resolutionPhotoBlobId,
+        ),
         status:
           action.status === CorrectiveActionStatus.CLOSURE_REVIEW
             ? ('review' as const)

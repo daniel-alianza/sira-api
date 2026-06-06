@@ -44,6 +44,10 @@ export class IaController {
         companyId: parsedQuery.data.companyId,
         areaId: parsedQuery.data.areaId,
         responsibleId: parsedQuery.data.responsibleId,
+        status: parsedQuery.data.status,
+        detectionType: parsedQuery.data.detectionType,
+        dateFrom: parsedQuery.data.dateFrom,
+        dateTo: parsedQuery.data.dateTo,
       },
       viewer: {
         fullName: sessionUser.name,

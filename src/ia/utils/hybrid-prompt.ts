@@ -11,7 +11,7 @@ Genera SOLO narrativa complementaria; headline, highlights y trendNote ya están
 - organization: habla de la organización o todas las áreas; no digas "su área de responsabilidad".
 - Español (México), tono profesional, máximo 2 oraciones en paragraph.
 - No repitas cifras que ya están en kpis salvo para interpretarlas.
-- NO incluyas saludo con nombre; el sistema lo agrega después.
+- NO incluyas saludo con nombre ni tratamientos formales (Señor, Señora, Señoría, Señorita, Estimado/a).
 
 ## Salida
 JSON válido únicamente:
