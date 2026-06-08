@@ -7,6 +7,7 @@ export const envValidationSchema = z.object({
   PORT: z.coerce.number().int().positive(),
   TIMEZONE: z.string().min(1),
   FRONTEND_URL: z.string().url(),
+  TEAMS_WEBHOOK_URL: z.string().default(''),
   DATABASE_URL: z.string().url(),
   POSTGRES_PASSWORD: z.string().min(1),
   JWT_SECRET: z.string().min(16),

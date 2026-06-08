@@ -7,10 +7,6 @@ import {
 } from '@nestjs/common';
 import { PasswordRegisterUseCase } from '../../../auth/application/use-cases/password-register.use-case';
 import {
-  ROLE_ADMINISTRATOR,
-  ROLE_INSPECTOR,
-} from '../../../auth/application/constants/role-names';
-import {
   assertUserUpdatePermissions,
   stripInspectorRestrictedFields,
 } from '../helpers/assert-user-update-permissions.helper';
@@ -78,15 +74,6 @@ export class UpdateUserUseCase {
 
       if (!role) {
         throw new NotFoundException('Rol no encontrado');
-      }
-
-      if (
-        requesterRole.name !== ROLE_ADMINISTRATOR &&
-        role.name !== ROLE_INSPECTOR
-      ) {
-        throw new ForbiddenException(
-          'Solo puedes asignar el rol Inspector',
-        );
       }
     }
 

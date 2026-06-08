@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationModule } from '../notification/notification.module';
 import { CORRECTIVE_ACTION_REPOSITORY } from './application/interfaces/corrective.port';
 import { GetActionsUseCase } from './application/use-cases/get-actions.use-case';
 import { GetActionByIdUseCase } from './application/use-cases/get-action-by-id.use-case';
@@ -16,7 +17,7 @@ import { PrismaCorrectiveActionRepository } from './infrastructure/prisma-correc
 import { CorrectiveController } from './presentation/corrective.controller';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, NotificationModule],
   controllers: [CorrectiveController],
   providers: [
     GetActionsUseCase,

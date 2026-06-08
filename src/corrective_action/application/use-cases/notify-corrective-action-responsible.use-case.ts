@@ -10,17 +10,18 @@ import {
   ROLE_ADMINISTRATOR,
   ROLE_INSPECTOR,
 } from '../../../auth/application/constants/role-names';
-import {
-  buildCorrectiveActionNotificationContent,
-  sendCorrectiveActionNotification,
-} from '../helpers/send-corrective-action-notification.helper';
+import type { CorrectiveActionNotificationStatus } from '../../../notification/application/interfaces/corrective-action-notification.interface';
+import { SendCorrectiveActionNotificationUseCase } from '../../../notification/application/use-cases/send-corrective-action-notification.use-case';
 import type { NotifyCorrectiveActionResult } from '../interfaces/notify-corrective-action.interface';
 import {
   CORRECTIVE_ACTION_REPOSITORY,
   type CorrectiveActionRepositoryPort,
 } from '../interfaces/corrective.port';
 
-const NOTIFY_ALLOWED_STATUSES = new Set(['pending_acceptance', 'open']);
+const NOTIFY_ALLOWED_STATUSES = new Set<CorrectiveActionNotificationStatus>([
+  'pending_acceptance',
+  'open',
+]);
 
 @Injectable()
 export class NotifyCorrectiveActionResponsibleUseCase {
@@ -28,6 +29,7 @@ export class NotifyCorrectiveActionResponsibleUseCase {
     @Inject(CORRECTIVE_ACTION_REPOSITORY)
     private readonly correctiveActionRepository: CorrectiveActionRepositoryPort,
     private readonly configService: ConfigService,
+    private readonly sendCorrectiveActionNotificationUseCase: SendCorrectiveActionNotificationUseCase,
   ) {}
 
   async execute(
@@ -50,7 +52,7 @@ export class NotifyCorrectiveActionResponsibleUseCase {
       throw new NotFoundException('Acción correctiva no encontrada');
     }
 
-    if (!NOTIFY_ALLOWED_STATUSES.has(action.status)) {
+    if (!NOTIFY_ALLOWED_STATUSES.has(action.status as CorrectiveActionNotificationStatus)) {
       throw new BadRequestException(
         'Solo se pueden notificar acciones pendientes de firma o abiertas',
       );
@@ -58,18 +60,13 @@ export class NotifyCorrectiveActionResponsibleUseCase {
 
     const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? '';
     const actionUrl = `${frontendUrl.replace(/\/$/, '')}/actions/${action.id}`;
-    const notificationContent = buildCorrectiveActionNotificationContent({
+
+    await this.sendCorrectiveActionNotificationUseCase.execute({
+      recipientEmail: action.responsibleEmail,
       responsibleName: action.responsibleName,
       detectionFolio: action.detectionFolio,
       actionUrl,
-      status: action.status,
-    });
-
-    await sendCorrectiveActionNotification({
-      recipientEmail: action.responsibleEmail,
-      subject: notificationContent.subject,
-      body: notificationContent.body,
-      actionUrl,
+      status: action.status as CorrectiveActionNotificationStatus,
     });
 
     return {

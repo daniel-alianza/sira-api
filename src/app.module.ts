@@ -5,6 +5,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { CorrectiveModule } from './corrective_action/corrective.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { IaModule } from './ia/ia.module';
+import { NotificationModule } from './notification/notification.module';
 import { ReportsModule } from './reports/reports.module';
 import { MediaModule } from './media/media.module';
 import { ToursModule } from './tours/tours.module';
@@ -29,6 +30,7 @@ import { PrismaModule } from './infrastructure/prisma/prisma.module';
     DashboardModule,
     IaModule,
     ReportsModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [],

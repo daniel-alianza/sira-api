@@ -551,13 +551,13 @@ function buildKpis(
 
   const notRespondedUsers = new Set(
     allActions
-      .filter((a) => a.status === CorrectiveActionStatus.PENDING_ACCEPTANCE)
+      .filter((a) => a.status === CorrectiveActionStatus.OPEN)
       .map((a) => a.detection.responsibleId),
   ).size;
 
   const notSignedUsers = new Set(
     allActions
-      .filter((a) => a.status === CorrectiveActionStatus.OPEN)
+      .filter((a) => a.status === CorrectiveActionStatus.PENDING_ACCEPTANCE)
       .map((a) => a.detection.responsibleId),
   ).size;
 
