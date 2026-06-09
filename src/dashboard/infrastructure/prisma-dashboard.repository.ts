@@ -27,13 +27,14 @@ import {
   buildDashboardIaSlimFilters,
 } from '../application/helpers/build-dashboard-ia-slim-context.helper';
 import {
-  buildActionWhereInput,
   buildOperationalQueueWhereInput,
+  buildPeriodActionWhereInput,
   computeComplianceRate,
   getMonthLabel,
   buildDashboardPeriodLabel,
-  parseDateOnly,
+  resolveDashboardDateRange,
   resolveDefaultPeriod,
+  resolvePrismaStatusFromFilter,
   truncateAreaLabel,
 } from '../application/helpers/dashboard-query.helper';
 import type {
@@ -56,6 +57,12 @@ const STATUS_DISTRIBUTION_LABELS: Record<string, string> = {
   CLOSURE_REVIEW: 'En rev. cierre',
   REJECTED: 'Rechazada',
 };
+
+const ACTIVE_OPEN_STATUSES: readonly CorrectiveActionStatus[] = [
+  CorrectiveActionStatus.OPEN,
+  CorrectiveActionStatus.PENDING,
+  CorrectiveActionStatus.REOPENED,
+];
 
 @Injectable()
 export class PrismaDashboardRepository implements DashboardRepositoryPort {
@@ -124,21 +131,35 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
     const period = resolveDefaultPeriod(resolvedTimeZone);
     const dateFrom = filter.dateFrom ?? period.from;
     const dateTo = filter.dateTo ?? period.to;
-    const rangeStart = parseDateOnly(dateFrom);
-    const rangeEnd = parseDateOnly(dateTo);
-    rangeEnd.setUTCHours(23, 59, 59, 999);
+    const { rangeStart, rangeEnd } = resolveDashboardDateRange(
+      dateFrom,
+      dateTo,
+      resolvedTimeZone,
+    );
 
-    const actionWhere = buildActionWhereInput(filter, rangeStart, rangeEnd);
-    const operationalQueueWhere = buildOperationalQueueWhereInput(filter);
+    const periodActionWhere = buildPeriodActionWhereInput(
+      filter,
+      rangeStart,
+      rangeEnd,
+    );
+    const snapshotActionWhere = buildOperationalQueueWhereInput(filter);
+    const prismaStatus = resolvePrismaStatusFromFilter(filter);
+    const periodActionWhereFiltered = prismaStatus
+      ? { ...periodActionWhere, status: prismaStatus }
+      : periodActionWhere;
+    const operationalQueueWhere = snapshotActionWhere;
     const now = new Date();
 
     const [
       filterOptions,
       firstWalkthrough,
-      statusGroups,
+      snapshotStatusGroups,
+      totalActionsInPeriod,
       walkthroughsCount,
-      actions,
+      periodActions,
+      snapshotActions,
       closedActionsForAvg,
+      openActionsPreview,
       commitmentChanges,
       pendingSignatureActions,
       closureReviewActions,
@@ -152,8 +173,11 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
       }),
       this.prisma.correctiveAction.groupBy({
         by: ['status'],
-        where: actionWhere,
+        where: snapshotActionWhere,
         _count: { _all: true },
+      }),
+      this.prisma.correctiveAction.count({
+        where: periodActionWhere,
       }),
       this.prisma.walkthrough.count({
         where: {
@@ -174,7 +198,7 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
         },
       }),
       this.prisma.correctiveAction.findMany({
-        where: actionWhere,
+        where: periodActionWhereFiltered,
         select: {
           id: true,
           status: true,
@@ -198,34 +222,69 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
         },
       }),
       this.prisma.correctiveAction.findMany({
+        where: snapshotActionWhere,
+        select: {
+          status: true,
+        },
+      }),
+      this.prisma.correctiveAction.findMany({
         where: {
-          ...actionWhere,
+          ...snapshotActionWhere,
           status: CorrectiveActionStatus.CLOSED,
+          updatedAt: {
+            gte: rangeStart,
+            lte: rangeEnd,
+          },
         },
         select: {
           createdAt: true,
           updatedAt: true,
         },
       }),
-      this.loadCommitmentDateRequests(actionWhere),
+      this.prisma.correctiveAction.findMany({
+        where: {
+          ...snapshotActionWhere,
+          status: {
+            in: [...ACTIVE_OPEN_STATUSES],
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 12,
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          detection: {
+            select: {
+              folio: true,
+              description: true,
+              evidencePhotoBlobId: true,
+              area: { select: { name: true } },
+              responsible: { select: { name: true } },
+              walkthrough: { select: { folio: true } },
+            },
+          },
+        },
+      }),
+      this.loadCommitmentDateRequests(periodActionWhereFiltered),
       this.loadPendingSignatureActions(operationalQueueWhere),
       this.loadClosureReviewActions(operationalQueueWhere),
       this.loadExpiredActions(operationalQueueWhere, now, resolvedTimeZone),
-      this.loadUpcomingDueActions(actionWhere, now),
+      this.loadUpcomingDueActions(snapshotActionWhere, now),
     ]);
 
     const kpis = buildKpis(
-      statusGroups,
+      snapshotStatusGroups,
       walkthroughsCount,
       closedActionsForAvg,
-      actions,
+      snapshotActions,
       resolvedTimeZone,
+      totalActionsInPeriod,
     );
-    const areaCompliance = buildAreaCompliance(actions);
+    const areaCompliance = buildAreaCompliance(periodActions);
     const charts = buildCharts(
-      actions,
+      periodActions,
       areaCompliance,
-      statusGroups,
       upcomingDueActions,
       now,
       resolvedTimeZone,
@@ -240,7 +299,7 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
       firstWalkthroughDate,
       filterOptions,
       kpis,
-      openActions: buildDashboardOpenActions(actions),
+      openActions: buildDashboardOpenActions(openActionsPreview),
       areaCompliance,
       commitmentDateRequests: commitmentChanges,
       operationalQueues: {
@@ -249,7 +308,7 @@ export class PrismaDashboardRepository implements DashboardRepositoryPort {
         expiredActions,
       },
       charts,
-      actionsForTrend: actions,
+      actionsForTrend: periodActions,
     };
   }
 
@@ -530,8 +589,9 @@ function buildKpis(
   statusGroups: { status: CorrectiveActionStatus; _count: { _all: number } }[],
   walkthroughsCount: number,
   closedActions: { createdAt: Date; updatedAt: Date }[],
-  allActions: { status: CorrectiveActionStatus; detection: { responsibleId: string } }[],
+  snapshotActions: { status: CorrectiveActionStatus }[],
   timeZone: string,
+  totalActionsInPeriod: number,
 ) {
   const countByStatus = new Map(
     statusGroups.map((group) => [group.status, group._count._all]),
@@ -544,22 +604,13 @@ function buildKpis(
     getCount(CorrectiveActionStatus.PENDING) +
     getCount(CorrectiveActionStatus.REOPENED);
 
-  const totalActions = statusGroups.reduce(
-    (sum, group) => sum + group._count._all,
-    0,
-  );
+  const notRespondedUsers = snapshotActions.filter(
+    (action) => action.status === CorrectiveActionStatus.OPEN,
+  ).length;
 
-  const notRespondedUsers = new Set(
-    allActions
-      .filter((a) => a.status === CorrectiveActionStatus.OPEN)
-      .map((a) => a.detection.responsibleId),
-  ).size;
-
-  const notSignedUsers = new Set(
-    allActions
-      .filter((a) => a.status === CorrectiveActionStatus.PENDING_ACCEPTANCE)
-      .map((a) => a.detection.responsibleId),
-  ).size;
+  const notSignedUsers = snapshotActions.filter(
+    (action) => action.status === CorrectiveActionStatus.PENDING_ACCEPTANCE,
+  ).length;
 
   const avgClosureDays =
     closedActions.length === 0
@@ -580,7 +631,7 @@ function buildKpis(
         ) / 10;
 
   return {
-    totalActions,
+    totalActions: totalActionsInPeriod,
     openActions,
     closedActions: getCount(CorrectiveActionStatus.CLOSED),
     pendingAcceptance: getCount(CorrectiveActionStatus.PENDING_ACCEPTANCE),
@@ -668,7 +719,6 @@ function buildCharts(
     actionsTotal: number;
     closedActions: number;
   }[],
-  statusGroups: { status: CorrectiveActionStatus; _count: { _all: number } }[],
   upcomingDueActions: { currentCommitmentDate: Date | null }[],
   now: Date,
   timeZone: string,
@@ -709,9 +759,9 @@ function buildCharts(
   }));
 
   const groupedStatus = new Map<string, number>();
-  for (const group of statusGroups) {
-    const label = STATUS_DISTRIBUTION_LABELS[group.status] ?? group.status;
-    groupedStatus.set(label, (groupedStatus.get(label) ?? 0) + group._count._all);
+  for (const action of actions) {
+    const label = STATUS_DISTRIBUTION_LABELS[action.status] ?? action.status;
+    groupedStatus.set(label, (groupedStatus.get(label) ?? 0) + 1);
   }
 
   const statusDistribution = [...groupedStatus.entries()].map(

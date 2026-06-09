@@ -34,6 +34,15 @@ const USERS: UserSeedData[] = [
     branchName: 'Atizapan',
   },
   {
+    name: 'Iselt Olvera',
+    email: 'iselt.olvera@alianzaelectrica.com',
+    password: 'IsOl2026$',
+    roleName: 'Administrador',
+    areaName: 'Recursos Humanos',
+    companyName: 'Alianza Electrica',
+    branchName: 'Atizapan',
+  },
+  {
     name: 'OCCELI ANAHI ALEJANDRE FUENTE',
     email: 'occeli.alejandre@fgelectrical.com',
     password: 'OcFu2026$',

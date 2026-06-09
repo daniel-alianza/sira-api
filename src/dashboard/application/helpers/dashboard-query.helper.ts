@@ -1,5 +1,6 @@
 import { CorrectiveActionStatus, DetectionType } from '../../../../generated/prisma/client';
 import type { Prisma } from '../../../../generated/prisma/client';
+import { zonedLocalDateTimeToUtc } from '../../../common/days-and-hours-work';
 import type { DashboardQueryFilter } from '../interfaces/dashboard.interface';
 
 const API_TO_PRISMA_STATUS: Record<string, CorrectiveActionStatus> = {
@@ -62,29 +63,50 @@ function formatShortDashboardDateLabel(
   }).format(date);
 }
 
+export function resolveDashboardDateRange(
+  dateFrom: string,
+  dateTo: string,
+  timeZone: string,
+): { readonly rangeStart: Date; readonly rangeEnd: Date } {
+  const rangeStart = zonedLocalDateTimeToUtc(dateFrom, 0, 0, timeZone);
+  const rangeEnd = zonedLocalDateTimeToUtc(dateTo, 23, 59, timeZone);
+  rangeEnd.setSeconds(59, 999);
+
+  return { rangeStart, rangeEnd };
+}
+
+function buildDetectionWhereInput(
+  filter: DashboardQueryFilter,
+): Prisma.DetectionWhereInput {
+  return {
+    ...(filter.companyId ? { companyId: filter.companyId } : {}),
+    ...(filter.areaId ? { areaId: filter.areaId } : {}),
+    ...(filter.responsibleId ? { responsibleId: filter.responsibleId } : {}),
+    ...(filter.detectionType
+      ? {
+          type:
+            filter.detectionType === 'unsafe_act'
+              ? DetectionType.UNSAFE_ACT
+              : DetectionType.UNSAFE_CONDITION,
+        }
+      : {}),
+  };
+}
+
+export function resolvePrismaStatusFromFilter(
+  filter: DashboardQueryFilter,
+): CorrectiveActionStatus | undefined {
+  if (!filter.status) {
+    return undefined;
+  }
+
+  return API_TO_PRISMA_STATUS[filter.status];
+}
+
 export function buildOperationalQueueWhereInput(
   filter: DashboardQueryFilter,
 ): Prisma.CorrectiveActionWhereInput {
-  const detectionFilter: Prisma.DetectionWhereInput = {};
-
-  if (filter.companyId) {
-    detectionFilter.companyId = filter.companyId;
-  }
-
-  if (filter.areaId) {
-    detectionFilter.areaId = filter.areaId;
-  }
-
-  if (filter.responsibleId) {
-    detectionFilter.responsibleId = filter.responsibleId;
-  }
-
-  if (filter.detectionType) {
-    detectionFilter.type =
-      filter.detectionType === 'unsafe_act'
-        ? DetectionType.UNSAFE_ACT
-        : DetectionType.UNSAFE_CONDITION;
-  }
+  const detectionFilter = buildDetectionWhereInput(filter);
 
   if (Object.keys(detectionFilter).length === 0) {
     return {};
@@ -93,34 +115,34 @@ export function buildOperationalQueueWhereInput(
   return { detection: detectionFilter };
 }
 
-export function buildActionWhereInput(
+export function buildPeriodActionWhereInput(
   filter: DashboardQueryFilter,
   rangeStart: Date,
   rangeEnd: Date,
 ): Prisma.CorrectiveActionWhereInput {
-  const prismaStatus = filter.status
-    ? API_TO_PRISMA_STATUS[filter.status]
-    : undefined;
+  const detectionFilter = buildDetectionWhereInput(filter);
 
   return {
     createdAt: {
       gte: rangeStart,
       lte: rangeEnd,
     },
+    ...(Object.keys(detectionFilter).length > 0
+      ? { detection: detectionFilter }
+      : {}),
+  };
+}
+
+export function buildActionWhereInput(
+  filter: DashboardQueryFilter,
+  rangeStart: Date,
+  rangeEnd: Date,
+): Prisma.CorrectiveActionWhereInput {
+  const prismaStatus = resolvePrismaStatusFromFilter(filter);
+
+  return {
+    ...buildPeriodActionWhereInput(filter, rangeStart, rangeEnd),
     ...(prismaStatus ? { status: prismaStatus } : {}),
-    detection: {
-      ...(filter.companyId ? { companyId: filter.companyId } : {}),
-      ...(filter.areaId ? { areaId: filter.areaId } : {}),
-      ...(filter.responsibleId ? { responsibleId: filter.responsibleId } : {}),
-      ...(filter.detectionType
-        ? {
-            type:
-              filter.detectionType === 'unsafe_act'
-                ? DetectionType.UNSAFE_ACT
-                : DetectionType.UNSAFE_CONDITION,
-          }
-        : {}),
-    },
   };
 }
 
